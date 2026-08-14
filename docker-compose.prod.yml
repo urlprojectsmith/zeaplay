@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: vee_task_manager
+      POSTGRES_USER: vee_user
+      POSTGRES_PASSWORD: vee_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Removed external port exposure for security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vee_user -d vee_task_manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      VEE_DATABASE_URL: postgresql://vee_user:vee_password@postgres:5432/vee_task_manager
+      VEE_JWT_SECRET_KEY: your_jwt_secret_key_here
+      VEE_JWT_REFRESH_SECRET_KEY: your_refresh_secret_key_here
+      VEE_ENVIRONMENT: production
+    ports:
+      - "6211:6211"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 6211"
+
+  reporting-worker:
+    build: ./backend
+    environment:
+      VEE_DATABASE_URL: postgresql://vee_user:vee_password@postgres:5432/vee_task_manager
+      VEE_ENVIRONMENT: production
+      REPORTING_WORKER_INTERVAL: 60
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "python -m app.reporting.worker"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: https://playapi.zeacrm.com/api
+        VITE_API_URL: https://playapi.zeacrm.com/api
+        VITE_PRESENCE_URL: https://playapi.zeacrm.com
+    ports:
+      - "6200:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
