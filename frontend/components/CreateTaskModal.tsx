@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import api from '../services/mockApi';
-import { TaskPriority, User, UserStatus, Role, RecurrenceRule, KanbanColumn, TaskStatus, Subtask, CUSTOM_STATUS_NAMES } from '../types';
+import { TaskPriority, User, UserStatus, RecurrenceRule, KanbanColumn, TaskStatus, Subtask, CUSTOM_STATUS_NAMES } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { formatRecurrenceRule, formatTaskStatus } from '../utils';
@@ -50,7 +50,7 @@ const THEME_MODES: Record<ThemeMode, ThemeConfig> = {
         accentSoft: 'rgba(99,102,241,0.25)',
         input: 'rgba(15,23,42,0.6)',
         inputHover: 'rgba(30,41,59,0.75)',
-        dropdown: 'rgba(15,23,42,0.92)',
+        dropdown: 'rgba(10,15,31,0.985)',
         chipBg: 'rgba(99,102,241,0.18)',
         chipText: '#c4c6ff',
         chipBorder: 'rgba(99,102,241,0.55)',
@@ -245,17 +245,9 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
         })
     );
 
-    const canSetHighPriority = currentUser?.role
-        ? [Role.ADMIN, Role.MANAGER, Role.OWNER].includes(currentUser.role)
-        : false;
-
     const allowedPriorities = useMemo(
-        () => (
-            canSetHighPriority
-                ? Object.values(TaskPriority)
-                : [TaskPriority.LOW, TaskPriority.MEDIUM]
-        ),
-        [canSetHighPriority]
+        () => Object.values(TaskPriority),
+        []
     );
 
     const priorityOptions = allowedPriorities.map((p) => ({

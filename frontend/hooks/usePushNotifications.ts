@@ -31,6 +31,29 @@ const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   return outputArray;
 };
 
+const registerServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
+  const registration = await navigator.serviceWorker.register('/sw.js', {
+    updateViaCache: 'none',
+  });
+  await registration.update().catch(() => undefined);
+  return navigator.serviceWorker.ready;
+};
+
+const resetServiceWorkerRegistrations = async () => {
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+};
+
+const isPushServiceError = (error: unknown) =>
+  error instanceof Error && error.message.toLowerCase().includes('push service error');
+
+const formatPushError = (error: unknown): string => {
+  if (isPushServiceError(error)) {
+    return 'Browser push service rejected registration. Allow notifications for this site, keep the browser notification service enabled, then try again.';
+  }
+  return error instanceof Error ? error.message : 'Unable to enable push notifications.';
+};
+
 export const usePushNotifications = () => {
   const [state, setState] = useState<PushState>(DEFAULT_STATE);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
@@ -49,8 +72,7 @@ export const usePushNotifications = () => {
     }
 
     try {
-      const registration =
-        registrationRef.current ?? (await navigator.serviceWorker.register('/sw.js'));
+      const registration = registrationRef.current ?? (await registerServiceWorker());
       registrationRef.current = registration;
       const subscription = await registration.pushManager.getSubscription();
       setState((prev) => ({
@@ -98,8 +120,7 @@ export const usePushNotifications = () => {
         return;
       }
 
-      const registration =
-        registrationRef.current ?? (await navigator.serviceWorker.register('/sw.js'));
+      let registration = registrationRef.current ?? (await registerServiceWorker());
       registrationRef.current = registration;
       const existing = await registration.pushManager.getSubscription();
       let subscription = existing;
@@ -107,10 +128,24 @@ export const usePushNotifications = () => {
       if (!subscription) {
         const { publicKey } = await api.getVapidPublicKey();
         const applicationServerKey = urlBase64ToUint8Array(publicKey);
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey,
-        });
+        try {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+        } catch (subscribeError) {
+          if (!isPushServiceError(subscribeError)) {
+            throw subscribeError;
+          }
+
+          await resetServiceWorkerRegistrations();
+          registration = await registerServiceWorker();
+          registrationRef.current = registration;
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+        }
       }
 
       const json = subscription.toJSON();
@@ -134,7 +169,8 @@ export const usePushNotifications = () => {
       setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Unable to enable push notifications.',
+        permission: Notification.permission,
+        error: formatPushError(error),
       }));
     }
   }, [supported]);
@@ -147,8 +183,7 @@ export const usePushNotifications = () => {
 
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
-      const registration =
-        registrationRef.current ?? (await navigator.serviceWorker.register('/sw.js'));
+      const registration = registrationRef.current ?? (await registerServiceWorker());
       registrationRef.current = registration;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {

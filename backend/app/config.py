@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +67,19 @@ class Settings(BaseSettings):
     webex_bot_token: Optional[str] = None
     webex_room_id: Optional[str] = None
     webex_api_base: str = "https://webexapis.com/v1"
+
+    vapid_public_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("VAPID_PUBLIC_KEY", "VEE_VAPID_PUBLIC_KEY"),
+    )
+    vapid_private_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("VAPID_PRIVATE_KEY", "VEE_VAPID_PRIVATE_KEY"),
+    )
+    vapid_subject: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("VAPID_SUBJECT", "VEE_VAPID_SUBJECT"),
+    )
 
     seed_admin_email: str = "admin@example.com"
     seed_admin_password: str = "admin123"

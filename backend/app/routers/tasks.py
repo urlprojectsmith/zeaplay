@@ -155,12 +155,7 @@ def _ensure_task_update_access(task: models.Task, user: models.User) -> None:
 
 
 def _ensure_priority_allowed(priority: models.TaskPriorityEnum, user: models.User) -> None:
-    if priority in {models.TaskPriorityEnum.HIGH, models.TaskPriorityEnum.URGENT}:
-        if user.role not in {models.RoleEnum.ADMIN, models.RoleEnum.MANAGER, models.RoleEnum.OWNER}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only managers, owners, or admins can set high or urgent priority tasks",
-            )
+    return
 
 
 def _apply_task_visibility(stmt: select, current_user: models.User) -> select:

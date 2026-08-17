@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 interface Option {
   id: string;
@@ -27,6 +27,8 @@ const SingleSelect: React.FC<SingleSelectProps> = ({
   disabled = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
+  const [menuMaxHeight, setMenuMaxHeight] = useState(192);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,6 +48,21 @@ const SingleSelect: React.FC<SingleSelectProps> = ({
     }
   }, [id, isOpen, onOpenChange]);
 
+  useLayoutEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const viewportPadding = 20;
+    const preferredHeight = 224;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const shouldDropUp = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+    const availableSpace = shouldDropUp ? spaceAbove : spaceBelow;
+
+    setDropUp(shouldDropUp);
+    setMenuMaxHeight(Math.max(144, Math.min(224, availableSpace)));
+  }, [isOpen, options.length]);
+
   const selectedOption = options.find((opt) => opt.id === value);
 
   const handleToggle = () => {
@@ -61,7 +78,7 @@ const SingleSelect: React.FC<SingleSelectProps> = ({
   const label = selectedOption?.name ?? "";
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${isOpen ? "z-[80]" : "z-0"} ${className}`}>
       <button
         type="button"
         id={id}
@@ -84,7 +101,12 @@ const SingleSelect: React.FC<SingleSelectProps> = ({
       </button>
 
       {isOpen && (
-        <div className="modal-dropdown-panel absolute z-50 mt-2 max-h-48 w-full overflow-y-auto">
+        <div
+          className={`modal-dropdown-panel absolute left-0 z-[90] w-full overflow-y-auto ${
+            dropUp ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+          style={{ maxHeight: menuMaxHeight }}
+        >
           {options.map((opt) => {
             const isSelected = opt.id === value;
             return (

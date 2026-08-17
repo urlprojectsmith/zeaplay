@@ -1189,11 +1189,14 @@ html:not(.dark):not(.theme-colorful) .kanban-filter-input {
 }
 
 .modal-dropdown-panel {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--modal-dropdown-bg, rgba(10, 15, 31, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.34);
   border-radius: 16px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
   color: white;
+  isolation: isolate;
+  overscroll-behavior: contain;
+  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .modal-dropdown-item {
@@ -1207,12 +1210,16 @@ html:not(.dark):not(.theme-colorful) .kanban-filter-input {
   transition: background 0.2s;
 }
 
+.modal-dropdown-item + .modal-dropdown-item {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
 .modal-dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(99, 102, 241, 0.22);
 }
 
 .modal-dropdown-item.is-selected {
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.32);
   color: #c4c6ff;
 }
 

@@ -1119,6 +1119,10 @@ type ApiVapidPublicKey = {
   public_key: string;
 };
 
+type ApiPushTestResult = {
+  delivered: number;
+};
+
 type ApiPushSubscriptionCreate = {
   endpoint: string;
   keys: {
@@ -4850,9 +4854,10 @@ const api = {
     }
   },
 
-  async sendPushTest(): Promise<void> {
+  async sendPushTest(): Promise<{ delivered: number }> {
     try {
-      await http.post('/push/test', {});
+      const { data } = await http.post<ApiPushTestResult>('/push/test', {});
+      return { delivered: data.delivered };
     } catch (error) {
       mapAxiosError(error);
     }

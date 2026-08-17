@@ -161,10 +161,17 @@ const SettingsNotificationsPanel: React.FC = () => {
     setTestLoading(true);
     setStatus(null);
     try {
-      await api.sendPushTest();
+      const result = await api.sendPushTest();
+      if (result.delivered < 1) {
+        setStatus({
+          type: 'error',
+          message: 'No active push subscription received the test. Enable this device again and retry.',
+        });
+        return;
+      }
       setStatus({
         type: 'success',
-        message: 'Test notification sent to this device.',
+        message: `Test notification delivered to ${result.delivered} device${result.delivered === 1 ? '' : 's'}.`,
       });
     } catch (testError) {
       setStatus({
@@ -303,7 +310,7 @@ const SettingsNotificationsPanel: React.FC = () => {
             <button
               type="button"
               onClick={handleTest}
-              disabled={testLoading || !supported || permission !== 'granted'}
+              disabled={testLoading || !supported || permission !== 'granted' || !isSubscribed}
               className="inline-flex items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:border-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {testLoading ? 'Sending test...' : 'Test notification'}

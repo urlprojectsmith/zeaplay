@@ -1686,6 +1686,10 @@ class PushSubscriptionPublicKey(BaseModel):
     public_key: str
 
 
+class PushTestResult(BaseModel):
+    delivered: int
+
+
 class NotificationPreferenceRead(BaseModel):
     module: NotificationModule
     push_enabled: bool

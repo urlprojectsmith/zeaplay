@@ -52,14 +52,14 @@ def unsubscribe(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/test", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.post("/test", response_model=schemas.PushTestResult)
 def test_notification(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
-) -> Response:
+) -> schemas.PushTestResult:
     if current_user.role not in {models.RoleEnum.ADMIN, models.RoleEnum.OWNER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    push_service.send_push(
+    delivered = push_service.send_push(
         db,
         user_ids=[str(current_user.id)],
         payload={
@@ -73,4 +73,4 @@ def test_notification(
         },
     )
     db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return schemas.PushTestResult(delivered=delivered)

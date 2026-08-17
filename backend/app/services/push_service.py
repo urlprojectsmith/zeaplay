@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Iterable
@@ -10,10 +11,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models
+from ..config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def _read_env(key: str) -> str | None:
-    return os.getenv(key) or os.getenv(f"VEE_{key}")
+    env_value = os.getenv(key) or os.getenv(f"VEE_{key}")
+    if env_value:
+        return env_value
+
+    return getattr(get_settings(), key.lower(), None)
 
 
 def get_vapid_public_key() -> str | None:
@@ -82,10 +90,12 @@ def send_push(db: Session, *, user_ids: Iterable[str], payload: dict) -> int:
     private_key = _get_vapid_private_key()
     subject = _get_vapid_subject()
     if not public_key or not private_key or not subject:
+        logger.warning("Push delivery skipped: VAPID configuration is incomplete")
         return 0
 
     recipients = list({user_id for user_id in user_ids if user_id})
     if not recipients:
+        logger.info("Push delivery skipped: no recipient user ids")
         return 0
 
     subscriptions = db.execute(
@@ -96,6 +106,7 @@ def send_push(db: Session, *, user_ids: Iterable[str], payload: dict) -> int:
     ).scalars().all()
 
     if not subscriptions:
+        logger.info("Push delivery skipped: no active subscriptions for recipients")
         return 0
 
     delivered = 0
@@ -115,6 +126,16 @@ def send_push(db: Session, *, user_ids: Iterable[str], payload: dict) -> int:
             delivered += 1
         except WebPushException as exc:
             status = exc.response.status_code if exc.response is not None else None
+            response_body = None
+            if exc.response is not None:
+                response_body = getattr(exc.response, "text", None)
+            logger.warning(
+                "Push delivery failed for subscription %s: status=%s error=%s response=%s",
+                subscription.id,
+                status,
+                exc,
+                response_body,
+            )
             if status in {404, 410}:
                 subscription.revoked_at = now
     return delivered
