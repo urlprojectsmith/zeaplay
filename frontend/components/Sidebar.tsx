@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 
 import { NavLink, NavLinkProps } from 'react-router-dom';
 
@@ -147,17 +147,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onSupportClick, isCollapsed, onToggle
                 />
             ),
             label: 'Kanban Board',
-        },
-        {
-            to: '/reporting',
-            icon: (
-                <img
-                    src="https://res.cloudinary.com/dqhcbck76/image/upload/v1770343494/report_boqlo0.png"
-                    alt="Reporting"
-                    className="h-6 w-6 object-contain"
-                />
-            ),
-            label: 'Reporting',
         },
         {
             to: '/tickets',
@@ -459,7 +448,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSupportClick, isCollapsed, onToggle
                         className="text-gray-400 hover:text-gray-200 transition"
                         aria-label="Open release notes"
                     >
-                        © {displayVersionLabel}
+                        Â© {displayVersionLabel}
                     </button>
                     <button
                         type="button"
@@ -483,3 +472,4 @@ const Sidebar: React.FC<SidebarProps> = ({ onSupportClick, isCollapsed, onToggle
 
 
 export default Sidebar;
+

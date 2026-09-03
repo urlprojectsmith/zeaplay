@@ -48,73 +48,132 @@
   <!-- Custom Theme Styles -->
   <style>
     :root {
-      --color-primary: #7C3AED;
-      --color-primary-dark: #6D28D9;
-      --color-background: #EEF2FF;
-      --color-surface: rgba(255, 255, 255, 0.82);
-      --color-border-color: rgba(99, 102, 241, 0.25);
-      --text-primary: #0F172A;
-      --text-secondary: #334155;
-      --text-muted: #64748B;
-      --text-accent: #1D4ED8;
-      --text-inverted: #F8FAFC;
-      --text-warning: #DC2626;
-      --text-success: #16A34A;
-      --color-text-primary: var(--text-primary);
-      --color-text-secondary: var(--text-secondary);
-      --color-text-muted: var(--text-muted);
-      --color-text-accent: var(--text-accent);
-      --color-text-inverted: var(--text-inverted);
-      --color-text-warning: var(--text-warning);
-      --color-text-success: var(--text-success);
-      --color-danger: #F43F5E;
+      --color-bg-primary: #FFFFFF;
+      --color-bg-secondary: #FFFFFF;
+      --color-bg-tertiary: #FFFFFF;
+      --color-background: var(--color-bg-primary);
+      --color-surface: #FFFFFF;
+      --color-surface-secondary: #F8FAFD;
+      --color-border-color: #D9E2EF;
+      --color-border-strong: #B9C9DE;
+
+      --color-primary: #2563EB;
+      --color-primary-dark: #1D4ED8;
+      --color-secondary: #7C3AED;
+      --color-success: #16A34A;
+      --color-warning: #D97706;
+      --color-danger: #DC2626;
+      --color-info: #0891B2;
+
+      --color-text-primary: #0F172A;
+      --color-text-secondary: #334155;
+      --color-text-muted: #64748B;
+      --color-text-accent: #1D4ED8;
+      --color-text-inverted: #F8FAFC;
+      --color-text-warning: #B45309;
+      --color-text-success: #166534;
+
+      --color-stage-battle: #22D3EE;
+      --color-stage-case: #3B82F6;
+      --color-stage-progress: #8B5CF6;
+      --color-stage-boss: #EF4444;
+      --color-stage-tactical: #14B8A6;
+      --color-stage-hold: #F59E0B;
+      --color-stage-conquered: #22C55E;
+      --color-stage-fallen: #EC4899;
+      --color-stage-graveyard: #64748B;
+
+      --color-priority-low: #22C55E;
+      --color-priority-medium: #F59E0B;
+      --color-priority-high: #F97316;
+      --color-priority-urgent: #A855F7;
     }
     .dark {
+      --color-bg-primary: #050B18;
+      --color-bg-secondary: #081226;
+      --color-bg-tertiary: #0B1630;
+      --color-background: var(--color-bg-primary);
+      --color-surface: #0D1830;
+      --color-surface-secondary: #111D38;
+      --color-border-color: rgba(56, 189, 248, 0.24);
+      --color-border-strong: rgba(56, 189, 248, 0.45);
+
       --color-primary: #38BDF8;
       --color-primary-dark: #0EA5E9;
-      --color-background: #020617;
-      --color-surface: rgba(15, 23, 42, 0.82);
-      --color-border-color: rgba(148, 163, 184, 0.22);
-      --text-primary: #E2E8F0;
-      --text-secondary: #94A3B8;
-      --text-muted: #64748B;
-      --text-accent: #FBBF24;
-      --text-inverted: #0B1120;
-      --text-warning: #F43F5E;
-      --text-success: #22C55E;
-      --color-text-primary: var(--text-primary);
-      --color-text-secondary: var(--text-secondary);
-      --color-text-muted: var(--text-muted);
-      --color-text-accent: var(--text-accent);
-      --color-text-inverted: var(--text-inverted);
-      --color-text-warning: var(--text-warning);
-      --color-text-success: var(--text-success);
-      --color-danger: #F43F5E;
+      --color-secondary: #8B5CF6;
+      --color-success: #15803D;
+      --color-warning: #D97706;
+      --color-danger: #B91C1C;
+      --color-info: #0EA5E9;
+
+      --color-text-primary: #E2E8F0;
+      --color-text-secondary: #94A3B8;
+      --color-text-muted: #64748B;
+      --color-text-accent: #22D3EE;
+      --color-text-inverted: #030712;
+      --color-text-warning: #FBBF24;
+      --color-text-success: #4ADE80;
+
+      --color-stage-battle: #22D3EE;
+      --color-stage-case: #3B82F6;
+      --color-stage-progress: #A78BFA;
+      --color-stage-boss: #EF4444;
+      --color-stage-tactical: #2DD4BF;
+      --color-stage-hold: #F59E0B;
+      --color-stage-conquered: #22C55E;
+      --color-stage-fallen: #EC4899;
+      --color-stage-graveyard: #64748B;
+
+      --color-priority-low: #22C55E;
+      --color-priority-medium: #F59E0B;
+      --color-priority-high: #F97316;
+      --color-priority-urgent: #A855F7;
     }
     .theme-colorful {
-      --color-primary: #ec4899;
-      --color-primary-dark: #d946ef;
-      --color-background: #fff7ed;
-      --color-surface: rgba(255, 247, 237, 0.88);
-      --color-border-color: rgba(236, 72, 153, 0.32);
-      --text-primary: #111827;
-      --text-secondary: #374151;
-      --text-muted: #6B7280;
-      --text-accent: #9333EA;
-      --text-inverted: #F8FAFC;
-      --text-warning: #E11D48;
-      --text-success: #10B981;
-      --color-text-primary: var(--text-primary);
-      --color-text-secondary: var(--text-secondary);
-      --color-text-muted: var(--text-muted);
-      --color-text-accent: var(--text-accent);
-      --color-text-inverted: var(--text-inverted);
-      --color-text-warning: var(--text-warning);
-      --color-text-success: var(--text-success);
-      --color-danger: #be123c;
+      --color-bg-primary: #050A1A;
+      --color-bg-secondary: #08122B;
+      --color-bg-tertiary: #0D1735;
+      --color-background: var(--color-bg-primary);
+      --color-surface: rgba(10, 21, 48, 0.86);
+      --color-surface-secondary: rgba(17, 29, 61, 0.92);
+      --color-border-color: rgba(59, 130, 246, 0.28);
+      --color-border-strong: rgba(125, 211, 252, 0.55);
+
+      --color-primary: #22D3EE;
+      --color-primary-dark: #06B6D4;
+      --color-secondary: #A855F7;
+      --color-success: #22C55E;
+      --color-warning: #F59E0B;
+      --color-danger: #F43F5E;
+      --color-info: #38BDF8;
+
+      --color-text-primary: #E5EEFF;
+      --color-text-secondary: #B8CAE8;
+      --color-text-muted: #8AA1C8;
+      --color-text-accent: #7DD3FC;
+      --color-text-inverted: #020617;
+      --color-text-warning: #FCD34D;
+      --color-text-success: #86EFAC;
+
+      --color-stage-battle: #22D3EE;
+      --color-stage-case: #3B82F6;
+      --color-stage-progress: #8B5CF6;
+      --color-stage-boss: #EF4444;
+      --color-stage-tactical: #14B8A6;
+      --color-stage-hold: #F59E0B;
+      --color-stage-conquered: #22C55E;
+      --color-stage-fallen: #EC4899;
+      --color-stage-graveyard: #64748B;
+
+      --color-priority-low: #22C55E;
+      --color-priority-medium: #F59E0B;
+      --color-priority-high: #F97316;
+      --color-priority-urgent: #A855F7;
     }
     body {
-      background: radial-gradient(120% 120% at 0% 0%, rgba(124, 58, 237, 0.2) 0%, rgba(236, 233, 254, 0.85) 35%, #EEF2FF 100%);
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(37, 99, 235, 0.10) 0%, rgba(238, 243, 249, 0) 45%),
+        linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg-primary) 100%);
       color: var(--color-text-primary);
       min-height: 100vh;
       transition: background 0.5s ease, color 0.3s ease;
@@ -122,15 +181,17 @@
       overflow-x: hidden;
     }
     .dark body {
-      background: radial-gradient(140% 140% at 15% 10%, rgba(124, 58, 237, 0.38) 0%, rgba(8, 47, 73, 0) 45%),
-                  radial-gradient(110% 110% at 80% 0%, rgba(56, 189, 248, 0.32) 0%, rgba(2, 6, 23, 0) 60%),
-                  #020617;
+      background:
+        radial-gradient(130% 130% at 18% 10%, rgba(56, 189, 248, 0.15) 0%, rgba(5, 11, 24, 0) 48%),
+        radial-gradient(120% 120% at 82% 0%, rgba(139, 92, 246, 0.12) 0%, rgba(5, 11, 24, 0) 42%),
+        linear-gradient(180deg, var(--color-bg-tertiary) 0%, var(--color-bg-primary) 100%);
       color: var(--color-text-primary);
     }
     .theme-colorful body {
-      background: radial-gradient(125% 120% at 10% 0%, rgba(236, 72, 153, 0.35) 0%, rgba(255, 247, 237, 0.92) 42%, #fff7ed 100%),
-                  radial-gradient(110% 110% at 90% 0%, rgba(14, 165, 233, 0.28) 0%, rgba(255, 247, 237, 0) 60%),
-                  #fff7ed;
+      background:
+        radial-gradient(125% 125% at 15% 12%, rgba(139, 92, 246, 0.20) 0%, rgba(5, 10, 26, 0) 48%),
+        radial-gradient(120% 120% at 88% 5%, rgba(34, 211, 238, 0.16) 0%, rgba(5, 10, 26, 0) 44%),
+        linear-gradient(180deg, var(--color-bg-tertiary) 0%, var(--color-bg-primary) 100%);
       color: var(--color-text-primary);
     }
     body::before {

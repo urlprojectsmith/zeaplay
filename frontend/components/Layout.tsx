@@ -1,4 +1,4 @@
-
+﻿
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
@@ -142,7 +142,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/dashboard', label: 'Dashboard', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241422/dashboard_pvjlbg.png' },
       { to: '/tasks', label: 'Tasks', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241423/task-actions_urhfeq.png' },
       { to: '/kanban', label: 'Kanban', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241422/kanban_ysnojm.png' },
-      { to: '/reporting', label: 'Reporting', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770343494/report_boqlo0.png' },
       { to: '/tickets', label: 'Tickets', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770343495/support-ticket_fku5gp.png' },
       { to: '/inbox', label: 'Inbox', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770623535/inbox_yds6wp.png' },
       { to: '/chat', label: 'Chat', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770623577/chat_xsolsd.png' },
@@ -245,9 +244,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             backgroundSize: '400% 400%',
             animation: 'darkShift 15s ease infinite'
           } : {
-            background: 'linear-gradient(45deg, #f093fb, #f5576c, #4facfe, #00f2fe, #43e97b, #38f9d7)',
-            backgroundSize: '400% 400%',
-            animation: 'lightShift 12s ease infinite'
+            background: '#ffffff',
+            backgroundSize: 'auto',
+            animation: 'none'
           }}
         >
         <style>
@@ -286,7 +285,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             className="mobile-nav-center"
             aria-label="Open menu"
           >
-            <span className="text-xl">≡</span>
+            <span className="text-xl">â‰¡</span>
           </button>
           {bottomBarLinks.slice(2, 4).map((link) => (
             <NavLink key={String(link.to)} to={link.to} className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)}>
@@ -386,5 +385,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 };
 
 export default Layout;
+
 
 

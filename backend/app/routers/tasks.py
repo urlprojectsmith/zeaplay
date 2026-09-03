@@ -21,7 +21,6 @@ from ..services import notifications as notification_service
 from ..services import audit_logger, task_events
 from ..tickets import task_link_service
 from ..tickets.models import Ticket
-from ..reporting.services.task_reporting_service import TaskReportingService
 from ..services.gamification import (
     COMPLETED_STATUSES,
     award_task_completion_points,
@@ -237,12 +236,24 @@ def _parse_date_filter(value: Optional[str]) -> Optional[tuple[datetime, datetim
     if not value:
         return None
     try:
+        if ".." in value:
+            raw_start, raw_end = value.split("..", 1)
+            if not raw_start and not raw_end:
+                return None
+            start_date = date.fromisoformat(raw_start or raw_end)
+            end_date = date.fromisoformat(raw_end or raw_start)
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+            start = datetime(start_date.year, start_date.month, start_date.day)
+            end = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+            return start, end
+
         parsed = date.fromisoformat(value)
+        start = datetime(parsed.year, parsed.month, parsed.day)
+        end = datetime(parsed.year, parsed.month, parsed.day, 23, 59, 59)
+        return start, end
     except ValueError:
         return None
-    start = datetime(parsed.year, parsed.month, parsed.day)
-    end = datetime(parsed.year, parsed.month, parsed.day, 23, 59, 59)
-    return start, end
 
 
 def _status_sort_expression() -> case:
@@ -1995,18 +2006,6 @@ def update_task(
                 occurred_at=task.completed_at or now,
             ),
         )
-        if current_user.tenant_id:
-            TaskReportingService(db).handle_task_completion(
-                tenant_id=str(current_user.tenant_id),
-                user_id=current_user.id,
-                task=task,
-            )
-        if current_user.tenant_id:
-            TaskReportingService(db).handle_task_completion(
-                tenant_id=str(current_user.tenant_id),
-                user_id=current_user.id,
-                task=task,
-            )
     if task.due_at and task.due_at <= now and task.status not in COMPLETED_STATUSES:
         if not previous_due_at or previous_due_at > now or previous_status in COMPLETED_STATUSES:
             process_badge_event(

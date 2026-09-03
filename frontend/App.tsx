@@ -1,4 +1,4 @@
-
+﻿
 import React, { Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth, SearchProvider, ThemeProvider, useTheme } from './hooks/useAuth';
@@ -25,7 +25,6 @@ const Chat = React.lazy(() => import('./pages/Chat'));
 const Logs = React.lazy(() => import('./pages/Logs'));
 const ToolLibrary = React.lazy(() => import('./pages/ToolLibrary'));
 const MasterControl = React.lazy(() => import('./pages/MasterControl'));
-const Reporting = React.lazy(() => import('./pages/Reporting'));
 
 const PageLoader: React.FC = () => (
   <div className="h-full min-h-[50vh] space-y-6 p-6">
@@ -80,7 +79,6 @@ const AppRoutes: React.FC = () => {
                 <Route path="calendar" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><CalendarView /></ProtectedRoute>} />
                 <Route path="gantt" element={<ProtectedRoute roles={[Role.MANAGER, Role.ADMIN, Role.OWNER]}><GanttView /></ProtectedRoute>} />
                 <Route path="reports" element={<ProtectedRoute roles={[Role.MANAGER, Role.ADMIN, Role.OWNER]}><Reports /></ProtectedRoute>} />
-                <Route path="reporting" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Reporting /></ProtectedRoute>} />
                 <Route path="logs" element={<ProtectedRoute roles={[Role.MANAGER, Role.ADMIN, Role.OWNER]}><Logs /></ProtectedRoute>} />
                 <Route path="tool-library" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><ToolLibrary /></ProtectedRoute>} />
                 <Route path="settings" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Settings /></ProtectedRoute>} />

@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task, User, TaskStatus, TaskPriority, Role } from '../types';
 import { useAuth, useSearch, useTheme } from '../hooks/useAuth';
 import api from '../services/mockApi';
@@ -512,33 +511,6 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    <div className={`${questCardBase} rounded-3xl border p-6 backdrop-blur`}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs uppercase tracking-[0.3em] text-text-secondary">Reporting</p>
-                                <h2 className="mt-2 text-xl font-semibold text-text-primary">Daily Reports</h2>
-                            </div>
-                            <Link
-                                to="/reporting"
-                                className="rounded-full border border-border-color/70 px-3 py-1 text-xs font-semibold text-text-secondary transition hover:border-primary hover:text-primary"
-                            >
-                                Open
-                            </Link>
-                        </div>
-                        <p className="mt-3 text-sm text-text-secondary">
-                            Start your day, submit hourly checkpoints, and send your final report.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-xs text-text-secondary">
-                            <span className="rounded-full border border-border-color/60 px-3 py-1">My Day</span>
-                            <span className="rounded-full border border-border-color/60 px-3 py-1">Preview</span>
-                            {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
-                                <span className="rounded-full border border-border-color/60 px-3 py-1">Team Status</span>
-                            )}
-                            {(user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
-                                <span className="rounded-full border border-border-color/60 px-3 py-1">Templates</span>
-                            )}
-                        </div>
-                    </div>
                     <div className={`${questCardBase} rounded-3xl border p-6 backdrop-blur`}>
                         <h2 className="text-xl font-semibold text-text-primary">Focus Queue</h2>
                         <p className="text-sm text-text-secondary">These quests are closest to the loot timer.</p>

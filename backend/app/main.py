@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,6 @@ from .routers import (
     comments,
     approvals,
     config as config_router,
-    reporting,
     feature_flags,
     data_admin,
     departments,
@@ -595,7 +594,6 @@ app.include_router(notifications.router)
 app.include_router(notification_preferences.router)
 app.include_router(push.router)
 app.include_router(config_router.router)
-app.include_router(reporting.router)
 app.include_router(feature_flags.router)
 app.include_router(n8n.router)
 app.include_router(data_admin.router)
@@ -629,7 +627,6 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(notification_preferences.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(config_router.router, prefix="/api")
-app.include_router(reporting.router, prefix="/api")
 app.include_router(feature_flags.router, prefix="/api")
 app.include_router(n8n.router, prefix="/api")
 app.include_router(data_admin.router, prefix="/api")

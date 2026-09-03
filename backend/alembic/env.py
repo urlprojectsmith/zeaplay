@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 from logging.config import fileConfig
 
@@ -11,7 +11,6 @@ from app.config import get_settings  # noqa: E402
 from app.database import Base  # noqa: E402
 import app.models  # noqa: F401,E402
 import app.tickets.models  # noqa: F401,E402
-import app.reporting.models  # noqa: F401,E402
 
 
 config = context.config

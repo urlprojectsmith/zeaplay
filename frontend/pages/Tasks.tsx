@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Task, User, TaskStatus, TaskPriority, CUSTOM_STATUS_NAMES, Role, TaskKanbanResponse } from '../types';
 import { useAuth, useSearch, useTheme } from '../hooks/useAuth';
 import { useTaskList } from '../hooks/useTaskList';
@@ -9,6 +10,7 @@ import api from '../services/mockApi';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { formatDate, timeAgo } from '../utils';
 import { augmentTasksWithPoints, summarizeTaskPoints, formatPointsValue, TaskPointsTone } from '../utils/taskPoints';
+import { priorityPillStyle, stageCardStyle, stageColumnStyle } from '../utils/themeTokens';
 import { PlusIcon, TagIcon } from '../components/icons';
 import TaskStatusBadge from '../components/ui/TaskStatusBadge';
 import TaskPriorityBadge from '../components/ui/TaskPriorityBadge';
@@ -47,59 +49,54 @@ const useResolvedTheme = (theme: ThemeMode): ResolvedTheme => {
     return resolved;
 };
 
-const DEFAULT_THEME = {
-    legend: 'Unknown',
-    gradient: 'from-gray-500/30 via-gray-600/30 to-gray-800/35',
-    glow: 'hover:shadow-[0_30px_70px_rgba(100,116,139,0.35)]',
+const parseRangeToken = (value: string): { start: string; end: string } => {
+    if (!value) {
+        return { start: '', end: '' };
+    }
+    const [start, end] = value.split('..');
+    if (!end) {
+        return { start: value, end: value };
+    }
+    return { start, end };
 };
 
-const TASK_STATUS_THEME: Record<TaskStatus, { legend: string; gradient: string; glow: string }> = {
-    [TaskStatus.WAITING_FOR_REQUIREMENT]: {
-        legend: 'Strategize the Battle Plan',
-        gradient: 'from-slate-500/30 via-slate-600/30 to-slate-800/35',
-        glow: 'hover:shadow-[0_30px_70px_rgba(100,116,139,0.35)]',
-    },
-    [TaskStatus.TODO]: {
-        legend: 'Case Filed and Ready',
-        gradient: 'from-indigo-500/25 via-sky-500/25 to-cyan-500/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(59,130,246,0.35)]',
-    },
-    [TaskStatus.IN_PROGRESS]: {
-        legend: 'In Progress',
-        gradient: 'from-purple-500/25 via-fuchsia-500/25 to-rose-500/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(192,132,252,0.4)]',
-    },
-    [TaskStatus.BLOCKED]: {
-        legend: 'Boss Encounter - Critical',
-        gradient: 'from-rose-500/25 via-red-500/25 to-orange-500/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(248,113,113,0.4)]',
-    },
-    [TaskStatus.IN_REVIEW]: {
-        legend: 'Tactical Shift in Progress',
-        gradient: 'from-emerald-500/25 via-teal-500/25 to-sky-400/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(16,185,129,0.35)]',
-    },
-    [TaskStatus.ON_HOLD]: {
-        legend: 'On Hold',
-        gradient: 'from-slate-500/25 via-slate-600/25 to-slate-700/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(148,163,184,0.35)]',
-    },
-    [TaskStatus.DONE]: {
-        legend: 'Victory Achieved - Claim Rewards',
-        gradient: 'from-emerald-400/25 via-lime-400/25 to-amber-300/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(74,222,128,0.35)]',
-    },
-    [TaskStatus.FAILED]: {
-        legend: 'Mission Failed - Fallen',
-        gradient: 'from-red-500/25 via-rose-500/25 to-pink-500/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(239,68,68,0.35)]',
-    },
-    [TaskStatus.GRAVEYARD]: {
-        legend: 'Archived in the Graveyard',
-        gradient: 'from-gray-500/25 via-gray-600/25 to-gray-700/30',
-        glow: 'hover:shadow-[0_30px_70px_rgba(107,114,128,0.35)]',
-    },
+const formatRangeLabel = (value: string): string => {
+    if (!value) {
+        return 'Date Range';
+    }
+    const { start, end } = parseRangeToken(value);
+    if (!start) {
+        return 'Date Range';
+    }
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end || start}T00:00:00`);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        return 'Date Range';
+    }
+    const startLabel = startDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+    });
+    const endLabel = endDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+    });
+    return start === (end || start) ? startLabel : `${startLabel} - ${endLabel}`;
 };
+
+const toIsoDate = (value: Date): string => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatPriority = (value: TaskPriority) =>
+    value
+        .toLowerCase()
+        .split('_')
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
 
 const completedStatuses = new Set<TaskStatus>([
     TaskStatus.DONE,
@@ -154,14 +151,65 @@ const FilterDropdown: React.FC<{
     menuClassName: string;
     itemClassName: string;
     activeItemClassName: string;
-}> = ({ value, placeholder, options, onChange, buttonClassName, menuClassName, itemClassName, activeItemClassName }) => {
+    searchable?: boolean;
+    searchPlaceholder?: string;
+    emptyStateText?: string;
+}> = ({
+    value,
+    placeholder,
+    options,
+    onChange,
+    buttonClassName,
+    menuClassName,
+    itemClassName,
+    activeItemClassName,
+    searchable = false,
+    searchPlaceholder = 'Search...',
+    emptyStateText = 'No results found.',
+}) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const wrapperRef = useRef<HTMLDivElement | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties | undefined>(undefined);
     const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+    const visibleOptions = useMemo(() => {
+        if (!searchable || !searchQuery.trim()) {
+            return options;
+        }
+        const query = searchQuery.trim().toLowerCase();
+        return options.filter((option) => option.label.toLowerCase().includes(query));
+    }, [options, searchable, searchQuery]);
+
+    const updateMenuPosition = useCallback(() => {
+        if (!buttonRef.current || typeof window === 'undefined') {
+            return;
+        }
+        const rect = buttonRef.current.getBoundingClientRect();
+        const sidePadding = 8;
+        const width = Math.min(rect.width, window.innerWidth - sidePadding * 2);
+        const left = Math.min(
+            Math.max(rect.left, sidePadding),
+            Math.max(sidePadding, window.innerWidth - width - sidePadding),
+        );
+        const top = rect.bottom + 8;
+        setMenuStyle({
+            position: 'fixed',
+            top,
+            left,
+            width,
+            zIndex: 9999,
+        });
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;
+        updateMenuPosition();
         const handleClick = (event: MouseEvent) => {
+            if (menuRef.current?.contains(event.target as Node)) {
+                return;
+            }
             if (!wrapperRef.current || wrapperRef.current.contains(event.target as Node)) {
                 return;
             }
@@ -174,15 +222,26 @@ const FilterDropdown: React.FC<{
         };
         document.addEventListener('mousedown', handleClick);
         document.addEventListener('keydown', handleKey);
+        window.addEventListener('resize', updateMenuPosition);
+        document.addEventListener('scroll', updateMenuPosition, true);
         return () => {
             document.removeEventListener('mousedown', handleClick);
             document.removeEventListener('keydown', handleKey);
+            window.removeEventListener('resize', updateMenuPosition);
+            document.removeEventListener('scroll', updateMenuPosition, true);
         };
-    }, [isOpen]);
+    }, [isOpen, updateMenuPosition]);
+
+    useEffect(() => {
+        if (!isOpen && searchQuery) {
+            setSearchQuery('');
+        }
+    }, [isOpen, searchQuery]);
 
     return (
         <div ref={wrapperRef} className="relative min-w-[190px]">
             <button
+                ref={buttonRef}
                 type="button"
                 className={`${buttonClassName} flex w-full items-center justify-between gap-3 text-left`}
                 onClick={() => setIsOpen((prev) => !prev)}
@@ -192,10 +251,25 @@ const FilterDropdown: React.FC<{
                 <span className={value ? '' : 'opacity-80'}>{selectedLabel}</span>
                 <ChevronIcon open={isOpen} className="h-4 w-4 shrink-0 opacity-80 transition" />
             </button>
-            {isOpen && (
-                <div className={`absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-b-[12px] border ${menuClassName}`}>
+            {isOpen && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={menuRef}
+                    style={menuStyle}
+                    className={`overflow-hidden rounded-b-[12px] border ${menuClassName}`}
+                >
+                    {searchable && (
+                        <div className="border-b border-white/10 p-2">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(event) => setSearchQuery(event.target.value)}
+                                placeholder={searchPlaceholder}
+                                className="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:border-cyan-300/70 focus:outline-none"
+                            />
+                        </div>
+                    )}
                     <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
-                        {options.map((option) => {
+                        {visibleOptions.map((option) => {
                             const isActive = option.value === value;
                             return (
                                 <button
@@ -213,10 +287,13 @@ const FilterDropdown: React.FC<{
                                 </button>
                             );
                         })}
+                        {visibleOptions.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-white/60">{emptyStateText}</div>
+                        )}
                     </div>
-                </div>
-            )}
-        </div>
+                </div>,
+                document.body,
+            )}        </div>
     );
 };
 
@@ -239,6 +316,7 @@ const Tasks: React.FC = () => {
     const isDark = resolvedTheme === 'dark';
     const isColorful = resolvedTheme === 'colorful';
     const isLight = resolvedTheme === 'light';
+    const kanbanTextColor = isLight ? '#000000' : '#FFFFFF';
 
     const taskTextColor = isDark ? 'text-white' : 'text-slate-900';
     const taskTextSecondary = isDark ? 'text-white/80' : 'text-slate-700';
@@ -310,11 +388,18 @@ const Tasks: React.FC = () => {
     const [priorityFilter, setPriorityFilter] = useState<string>('');
     const [assigneeFilter, setAssigneeFilter] = useState<string>('');
     const [teamFilter, setTeamFilter] = useState<string>('');
-    const [tagFilter, setTagFilter] = useState<string>('');
     const [dueDateFilter, setDueDateFilter] = useState<string>('');
     const [creationDateFilter, setCreationDateFilter] = useState<string>('');
-    const [sortBy, setSortBy] = useState<string>('status');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [isDateRangeOpen, setDateRangeOpen] = useState(false);
+    const [activeDatePreset, setActiveDatePreset] = useState<'7d' | '30d' | 'mtd' | 'ytd' | 'custom' | ''>('');
+    const dateRangeRef = useRef<HTMLDivElement | null>(null);
+    const dateRangeButtonRef = useRef<HTMLButtonElement | null>(null);
+    const dateRangePanelRef = useRef<HTMLDivElement | null>(null);
+    const [dateRangePanelStyle, setDateRangePanelStyle] = useState<React.CSSProperties | undefined>(undefined);
+    const kanbanScrollRef = useRef<HTMLDivElement | null>(null);
+    const kanbanTrackRef = useRef<HTMLDivElement | null>(null);
+    const [canScrollKanbanLeft, setCanScrollKanbanLeft] = useState(false);
+    const [canScrollKanbanRight, setCanScrollKanbanRight] = useState(false);
     const [quickFilter, setQuickFilter] = useState<string>('');
     const [viewMode, setViewMode] = useState<'list' | 'grid' | 'kanban'>(() => {
         if (typeof window !== 'undefined') {
@@ -343,6 +428,46 @@ const Tasks: React.FC = () => {
 
     const pageSize = Math.min(globalPageSize, pageSizeByView[viewMode]);
     const apiPageSize = viewMode === 'grid' ? pageSize * 3 : pageSize;
+    const dateRangeLabel = useMemo(() => formatRangeLabel(dueDateFilter), [dueDateFilter]);
+    const dateRangeTokens = useMemo(() => parseRangeToken(dueDateFilter), [dueDateFilter]);
+
+    const applyDatePreset = useCallback((preset: '7d' | '30d' | 'mtd' | 'ytd') => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        let start = new Date(today);
+        if (preset === '7d') {
+            start.setDate(today.getDate() - 6);
+        } else if (preset === '30d') {
+            start.setDate(today.getDate() - 29);
+        } else if (preset === 'mtd') {
+            start = new Date(today.getFullYear(), today.getMonth(), 1);
+        } else {
+            start = new Date(today.getFullYear(), 0, 1);
+        }
+        const startIso = toIsoDate(start);
+        const endIso = toIsoDate(today);
+        setDueDateFilter(`${startIso}..${endIso}`);
+        setCreationDateFilter('');
+        setActiveDatePreset(preset);
+    }, []);
+
+    const updateDateRange = useCallback(
+        (nextStart: string, nextEnd: string) => {
+            const normalizedStart = nextStart || nextEnd;
+            const normalizedEnd = nextEnd || nextStart;
+            if (!normalizedStart) {
+                setDueDateFilter('');
+                setActiveDatePreset('');
+                return;
+            }
+            setDueDateFilter(
+                normalizedStart === normalizedEnd ? normalizedStart : `${normalizedStart}..${normalizedEnd}`,
+            );
+            setCreationDateFilter('');
+            setActiveDatePreset('custom');
+        },
+        [],
+    );
 
     const listParams = useMemo(
         () => ({
@@ -354,12 +479,9 @@ const Tasks: React.FC = () => {
             priority: priorityFilter ? (priorityFilter as TaskPriority) : undefined,
             assigneeId: assigneeFilter || undefined,
             team: teamFilter || undefined,
-            tag: tagFilter || undefined,
             dueDate: dueDateFilter || undefined,
             createdDate: creationDateFilter || undefined,
             quickFilter: quickFilter || undefined,
-            sortBy: sortBy || undefined,
-            sortOrder: sortOrder,
         }),
         [
             viewMode,
@@ -370,12 +492,9 @@ const Tasks: React.FC = () => {
             priorityFilter,
             assigneeFilter,
             teamFilter,
-            tagFilter,
             dueDateFilter,
             creationDateFilter,
             quickFilter,
-            sortBy,
-            sortOrder,
         ],
     );
 
@@ -386,6 +505,17 @@ const Tasks: React.FC = () => {
 
     const { kanbanCache, ttlMs } = useMemo(() => getTaskCaches(), []);
     const loading = listLoading;
+    const [isContentFading, setIsContentFading] = useState(false);
+
+    useEffect(() => {
+        if (loading) {
+            setIsContentFading(true);
+            return;
+        }
+
+        const timer = window.setTimeout(() => setIsContentFading(false), 220);
+        return () => window.clearTimeout(timer);
+    }, [loading]);
 
     useEffect(() => {
         if (!pageResult) {
@@ -427,6 +557,58 @@ const Tasks: React.FC = () => {
         loadMetadata();
     }, [user]);
 
+
+    const updateDateRangePanelPosition = useCallback(() => {
+        if (!dateRangeButtonRef.current || typeof window === 'undefined') {
+            return;
+        }
+        const rect = dateRangeButtonRef.current.getBoundingClientRect();
+        const sidePadding = 8;
+        const width = Math.min(290, window.innerWidth - sidePadding * 2);
+        const left = Math.min(
+            Math.max(sidePadding, rect.right - width),
+            Math.max(sidePadding, window.innerWidth - width - sidePadding),
+        );
+        const top = rect.bottom + 8;
+        setDateRangePanelStyle({
+            position: 'fixed',
+            top,
+            left,
+            width,
+            zIndex: 9999,
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!isDateRangeOpen) {
+            return;
+        }
+        updateDateRangePanelPosition();
+        const onPointerDown = (event: MouseEvent) => {
+            if (dateRangePanelRef.current?.contains(event.target as Node)) {
+                return;
+            }
+            if (dateRangeRef.current && !dateRangeRef.current.contains(event.target as Node)) {
+                setDateRangeOpen(false);
+            }
+        };
+        const onEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setDateRangeOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('keydown', onEscape);
+        window.addEventListener('resize', updateDateRangePanelPosition);
+        document.addEventListener('scroll', updateDateRangePanelPosition, true);
+        return () => {
+            document.removeEventListener('mousedown', onPointerDown);
+            document.removeEventListener('keydown', onEscape);
+            window.removeEventListener('resize', updateDateRangePanelPosition);
+            document.removeEventListener('scroll', updateDateRangePanelPosition, true);
+        };
+    }, [isDateRangeOpen, updateDateRangePanelPosition]);
+
     const kanbanParams = useMemo(
         () => ({
             pageSize: pageSizeByView.kanban,
@@ -434,7 +616,6 @@ const Tasks: React.FC = () => {
             priority: priorityFilter ? (priorityFilter as TaskPriority) : undefined,
             assigneeId: assigneeFilter || undefined,
             team: teamFilter || undefined,
-            tag: tagFilter || undefined,
             dueDate: dueDateFilter || undefined,
             createdDate: creationDateFilter || undefined,
             quickFilter: quickFilter || undefined,
@@ -445,7 +626,6 @@ const Tasks: React.FC = () => {
             priorityFilter,
             assigneeFilter,
             teamFilter,
-            tagFilter,
             dueDateFilter,
             creationDateFilter,
             quickFilter,
@@ -546,11 +726,8 @@ const Tasks: React.FC = () => {
         priorityFilter,
         assigneeFilter,
         teamFilter,
-        tagFilter,
         dueDateFilter,
         creationDateFilter,
-        sortBy,
-        sortOrder,
         quickFilter,
         pageSizeByView,
     ]);
@@ -690,6 +867,112 @@ const Tasks: React.FC = () => {
         }
     };
 
+    const scrollKanbanColumns = useCallback((direction: 'left' | 'right') => {
+        const container = kanbanScrollRef.current;
+        if (!container) {
+            return;
+        }
+
+        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+        if (maxScrollLeft <= 0) {
+            return;
+        }
+
+        const current = Math.max(0, Math.min(maxScrollLeft, container.scrollLeft));
+        const epsilon = 2;
+        let target = current;
+
+        const columns = Array.from(kanbanTrackRef.current?.children ?? []).filter(
+            (element): element is HTMLDivElement => element instanceof HTMLDivElement,
+        );
+
+        if (columns.length > 0) {
+            if (direction === 'right') {
+                const nextColumn = columns.find((column) => column.offsetLeft > current + epsilon);
+                target = nextColumn ? nextColumn.offsetLeft : maxScrollLeft;
+            } else {
+                let previousColumnOffset = 0;
+                for (let index = columns.length - 1; index >= 0; index -= 1) {
+                    if (columns[index].offsetLeft < current - epsilon) {
+                        previousColumnOffset = columns[index].offsetLeft;
+                        break;
+                    }
+                }
+                target = previousColumnOffset;
+            }
+        } else {
+            const step = Math.max(240, Math.round(container.clientWidth * 0.8));
+            target = direction === 'left' ? current - step : current + step;
+        }
+
+        const clampedTarget = Math.max(0, Math.min(maxScrollLeft, target));
+        container.scrollTo({ left: clampedTarget, behavior: 'smooth' });
+    }, []);
+
+    const updateKanbanArrowState = useCallback(() => {
+        const container = kanbanScrollRef.current;
+        if (!container || viewMode !== 'kanban') {
+            setCanScrollKanbanLeft(false);
+            setCanScrollKanbanRight(false);
+            return;
+        }
+        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+        const current = Math.max(0, Math.min(maxScrollLeft, container.scrollLeft));
+        const epsilon = 2;
+        setCanScrollKanbanLeft(current > epsilon);
+        setCanScrollKanbanRight(current < maxScrollLeft - epsilon);
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (viewMode !== 'kanban') {
+            setCanScrollKanbanLeft(false);
+            setCanScrollKanbanRight(false);
+            return;
+        }
+        const container = kanbanScrollRef.current;
+        if (!container) {
+            return;
+        }
+
+        updateKanbanArrowState();
+        const onScroll = () => updateKanbanArrowState();
+        const onResize = () => updateKanbanArrowState();
+        const resizeObserver = typeof ResizeObserver !== 'undefined'
+            ? new ResizeObserver(() => updateKanbanArrowState())
+            : null;
+
+        container.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onResize);
+        if (resizeObserver) {
+            resizeObserver.observe(container);
+            if (kanbanTrackRef.current) {
+                resizeObserver.observe(kanbanTrackRef.current);
+            }
+        }
+
+        return () => {
+            container.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', onResize);
+            resizeObserver?.disconnect();
+        };
+    }, [viewMode, kanbanData, kanbanLoading, updateKanbanArrowState]);
+
+    useEffect(() => {
+        if (viewMode !== 'kanban') {
+            return;
+        }
+        const rafId = window.requestAnimationFrame(() => {
+            updateKanbanArrowState();
+        });
+        const timerId = window.setTimeout(() => {
+            updateKanbanArrowState();
+        }, 120);
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            window.clearTimeout(timerId);
+        };
+    }, [viewMode, kanbanData, kanbanLoading, updateKanbanArrowState]);
+
     const completedCount = useMemo(() => {
         if (Object.keys(statusCounts).length === 0) {
             return filteredTasks.filter((task) => completedStatuses.has(task.status)).length;
@@ -758,53 +1041,6 @@ const Tasks: React.FC = () => {
     const level = Math.max(1, Math.floor(xpScore / baseLevel) + 1);
     const levelProgress = Math.min(100, ((xpScore % baseLevel) / baseLevel) * 100);
     const createdByFilterActive = quickFilter === 'createdByMe';
-    const createdByFilterBase =
-        'group relative inline-flex items-center justify-center overflow-hidden rounded-full border-2 px-10 py-5 text-lg font-semibold uppercase tracking-[0.22em] transition duration-300 min-w-[280px] focus-visible:outline-none focus-visible:ring-2';
-    const createdByFilterTheme = isLight
-        ? {
-            surface: 'bg-white/90',
-            active: 'border-sky-500/90 text-slate-900 shadow-[0_0_24px_rgba(56,189,248,0.5)]',
-            inactive: 'border-slate-300/80 text-slate-700 hover:border-sky-400/80 hover:text-slate-900 hover:shadow-[0_0_18px_rgba(56,189,248,0.35)]',
-            ring: 'focus-visible:ring-sky-300/60',
-            glow: 'bg-[radial-gradient(circle,rgba(56,189,248,0.25),transparent_70%)]',
-            ping: 'bg-sky-400/70',
-            dotActive: 'bg-sky-500 shadow-[0_0_12px_rgba(56,189,248,0.8)]',
-            dotInactive: 'bg-sky-400/80 shadow-[0_0_10px_rgba(56,189,248,0.6)]',
-            sheen: 'bg-[linear-gradient(120deg,rgba(255,255,255,0.6),rgba(125,211,252,0.35),rgba(186,230,253,0.55))]',
-            halo: 'bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_60%)]',
-        }
-        : isColorful
-            ? {
-                surface: 'bg-gradient-to-r from-fuchsia-950/80 via-indigo-950/70 to-sky-950/80',
-                active: 'border-fuchsia-300/90 text-white shadow-[0_0_30px_rgba(217,70,239,0.55)]',
-                inactive: 'border-sky-400/70 text-white/90 hover:border-fuchsia-300/80 hover:text-white hover:shadow-[0_0_24px_rgba(56,189,248,0.45)]',
-                ring: 'focus-visible:ring-fuchsia-300/60',
-                glow: 'bg-[radial-gradient(circle,rgba(217,70,239,0.3),transparent_70%)]',
-                ping: 'bg-fuchsia-300/70',
-                dotActive: 'bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.9)]',
-                dotInactive: 'bg-sky-300/80 shadow-[0_0_12px_rgba(56,189,248,0.7)]',
-                sheen: 'bg-[linear-gradient(120deg,rgba(216,180,254,0.45),rgba(56,189,248,0.45),rgba(167,139,250,0.45))]',
-                halo: 'bg-[radial-gradient(circle_at_top,rgba(224,231,255,0.45),transparent_60%)]',
-            }
-            : {
-                surface: 'bg-slate-950/80',
-                active: 'border-cyan-300/90 text-cyan-100 shadow-[0_0_35px_rgba(34,211,238,0.7)]',
-                inactive: 'border-cyan-500/60 text-white/90 hover:border-cyan-300/80 hover:text-white hover:shadow-[0_0_30px_rgba(34,211,238,0.55)]',
-                ring: 'focus-visible:ring-cyan-400/70',
-                glow: 'bg-[radial-gradient(circle,rgba(34,211,238,0.3),transparent_70%)]',
-                ping: 'bg-cyan-300/60',
-                dotActive: 'bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.9)]',
-                dotInactive: 'bg-cyan-200/80 shadow-[0_0_10px_rgba(34,211,238,0.7)]',
-                sheen: 'bg-[linear-gradient(120deg,rgba(6,182,212,0.25),rgba(59,130,246,0.4),rgba(14,116,144,0.25))]',
-                halo: 'bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.35),transparent_60%)]',
-            };
-    const createdByFilterClass = [
-        createdByFilterBase,
-        createdByFilterTheme.surface,
-        'saber-pulse',
-        createdByFilterActive ? createdByFilterTheme.active : createdByFilterTheme.inactive,
-        createdByFilterTheme.ring,
-    ].join(' ');
     const quickFilterButtonBase = [
         'group relative isolate inline-flex items-center justify-center overflow-hidden rounded-[10px] border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em]',
         'transition duration-200 ease-out active:translate-y-[1px]',
@@ -844,18 +1080,94 @@ const Tasks: React.FC = () => {
             };
     const getQuickFilterButtonClass = (isActive: boolean) =>
         [quickFilterButtonBase, isActive ? quickFilterButtonTheme.active : quickFilterButtonTheme.inactive].join(' ');
-    const questFilterPanelClass = isLight
-        ? 'border-sky-200/70 bg-gradient-to-r from-white via-sky-50 to-slate-100 shadow-[0_22px_48px_rgba(15,23,42,0.12)]'
+    const getActionButtonTone = (
+        isActive: boolean,
+        tone: 'cyan' | 'indigo' | 'amber' | 'emerald' | 'violet' | 'slate',
+    ) => {
+        const toneMap = {
+            cyan: {
+                active: 'border-cyan-300/80 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.35)] hover:shadow-[0_0_28px_rgba(34,211,238,0.42)]',
+                inactive: 'border-cyan-300/45 text-cyan-100/90 hover:border-cyan-200/75 hover:text-cyan-50 hover:shadow-[0_0_22px_rgba(34,211,238,0.25)]',
+                icon: 'text-cyan-200',
+            },
+            indigo: {
+                active: 'border-indigo-300/80 text-indigo-50 shadow-[0_0_22px_rgba(99,102,241,0.35)] hover:shadow-[0_0_28px_rgba(99,102,241,0.42)]',
+                inactive: 'border-indigo-300/45 text-indigo-100/90 hover:border-indigo-200/75 hover:text-indigo-50 hover:shadow-[0_0_22px_rgba(99,102,241,0.25)]',
+                icon: 'text-indigo-200',
+            },
+            amber: {
+                active: 'border-amber-300/80 text-amber-50 shadow-[0_0_22px_rgba(245,158,11,0.33)] hover:shadow-[0_0_28px_rgba(245,158,11,0.4)]',
+                inactive: 'border-amber-300/45 text-amber-100/90 hover:border-amber-200/75 hover:text-amber-50 hover:shadow-[0_0_22px_rgba(245,158,11,0.24)]',
+                icon: 'text-amber-200',
+            },
+            emerald: {
+                active: 'border-emerald-300/80 text-emerald-50 shadow-[0_0_22px_rgba(16,185,129,0.33)] hover:shadow-[0_0_28px_rgba(16,185,129,0.4)]',
+                inactive: 'border-emerald-300/45 text-emerald-100/90 hover:border-emerald-200/75 hover:text-emerald-50 hover:shadow-[0_0_22px_rgba(16,185,129,0.24)]',
+                icon: 'text-emerald-200',
+            },
+            violet: {
+                active: 'border-violet-300/80 text-violet-50 shadow-[0_0_22px_rgba(139,92,246,0.35)] hover:shadow-[0_0_28px_rgba(139,92,246,0.42)]',
+                inactive: 'border-violet-300/45 text-violet-100/90 hover:border-violet-200/75 hover:text-violet-50 hover:shadow-[0_0_22px_rgba(139,92,246,0.24)]',
+                icon: 'text-violet-200',
+            },
+            slate: {
+                active: 'border-slate-300/70 text-slate-50 shadow-[0_0_20px_rgba(148,163,184,0.3)] hover:shadow-[0_0_26px_rgba(148,163,184,0.36)]',
+                inactive: 'border-slate-300/45 text-slate-100/90 hover:border-slate-200/70 hover:text-slate-50 hover:shadow-[0_0_20px_rgba(148,163,184,0.22)]',
+                icon: 'text-slate-200',
+            },
+        } as const;
+        const selected = toneMap[tone];
+        return {
+            className: [getQuickFilterButtonClass(isActive), isActive ? selected.active : selected.inactive].join(' '),
+            iconClassName: selected.icon,
+        };
+    };
+    const myTasksTone = getActionButtonTone(quickFilter === 'myTasks', 'cyan');
+    const createdByTone = getActionButtonTone(createdByFilterActive, 'indigo');
+    const overdueTone = getActionButtonTone(quickFilter === 'overdue', 'amber');
+    const completedTone = getActionButtonTone(quickFilter === 'completed', 'emerald');
+    const listTone = getActionButtonTone(viewMode === 'list', 'cyan');
+    const gridTone = getActionButtonTone(viewMode === 'grid', 'indigo');
+    const kanbanTone = getActionButtonTone(viewMode === 'kanban', 'violet');
+    const selectAllTone = getActionButtonTone(allSelected, 'slate');
+    const pagePanelClass = isLight
+        ? 'border-sky-200/70 bg-gradient-to-br from-slate-100 via-white to-sky-100 shadow-[0_24px_55px_rgba(15,23,42,0.14)]'
         : isColorful
-            ? 'border-fuchsia-300/30 bg-gradient-to-r from-indigo-950/85 via-fuchsia-950/75 to-slate-950/90 shadow-[0_24px_54px_rgba(91,33,182,0.45)]'
-            : 'border-cyan-400/30 bg-gradient-to-r from-slate-950/90 via-cyan-950/40 to-slate-950/90 shadow-[0_25px_60px_rgba(8,145,178,0.22)]';
-    const questFilterMetaClass = isLight
-        ? 'text-slate-600'
-        : isColorful
-            ? 'text-fuchsia-200/80'
-            : 'text-cyan-200/80';
-    const questFilterTitleClass = isLight ? 'text-slate-900' : 'text-white';
-    const questFilterBodyClass = isLight ? 'text-slate-600' : 'text-white/70';
+            ? 'border-fuchsia-300/35 bg-gradient-to-br from-[#160b33] via-[#080f23] to-[#111827] shadow-[0_28px_60px_rgba(76,29,149,0.55)]'
+            : 'border-cyan-400/25 bg-gradient-to-br from-[#060c1a] via-[#020617] to-[#030712] shadow-[0_26px_58px_rgba(8,145,178,0.28)]';
+    const templateButtonClass = isLight
+        ? [
+            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold',
+            'border-cyan-500/55 text-slate-900 bg-gradient-to-b from-white via-sky-100 to-sky-200',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_6px_0_rgba(14,116,144,0.22),0_14px_28px_rgba(14,116,144,0.22)]',
+            'transition-all duration-200 hover:-translate-y-[1px] hover:border-cyan-500/75 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_7px_0_rgba(14,116,144,0.24),0_0_24px_rgba(6,182,212,0.3)]',
+            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_3px_0_rgba(14,116,144,0.25),0_10px_18px_rgba(14,116,144,0.2)]',
+        ].join(' ')
+        : [
+            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold',
+            'border-cyan-300/60 text-cyan-100 bg-gradient-to-b from-[#0f2a3f] via-[#0b1f33] to-[#08162b]',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_6px_0_rgba(6,78,99,0.45),0_16px_30px_rgba(2,132,199,0.22)]',
+            'transition-all duration-200 hover:-translate-y-[1px] hover:border-cyan-200/80 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_7px_0_rgba(6,78,99,0.5),0_0_28px_rgba(34,211,238,0.35)]',
+            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_3px_0_rgba(6,78,99,0.5),0_12px_20px_rgba(8,145,178,0.25)]',
+        ].join(' ');
+    const createTaskButtonClass = isLight
+        ? [
+            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-white',
+            'border-fuchsia-400/65 bg-gradient-to-b from-fuchsia-400 via-violet-500 to-indigo-600',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_6px_0_rgba(79,70,229,0.35),0_14px_28px_rgba(124,58,237,0.32)]',
+            'transition-all duration-200 hover:-translate-y-[1px] hover:border-fuchsia-300/85 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_7px_0_rgba(79,70,229,0.38),0_0_30px_rgba(168,85,247,0.35)]',
+            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_3px_0_rgba(79,70,229,0.4),0_10px_18px_rgba(124,58,237,0.28)]',
+        ].join(' ')
+        : [
+            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-white',
+            'border-fuchsia-300/70 bg-gradient-to-b from-fuchsia-500 via-indigo-600 to-[#312e81]',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_6px_0_rgba(49,46,129,0.6),0_16px_30px_rgba(99,102,241,0.32)]',
+            'transition-all duration-200 hover:-translate-y-[1px] hover:border-fuchsia-200/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_7px_0_rgba(49,46,129,0.62),0_0_34px_rgba(168,85,247,0.45)]',
+            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_3px_0_rgba(49,46,129,0.62),0_12px_22px_rgba(99,102,241,0.3)]',
+        ].join(' ');
+    const toolbarPanelClass = isLight
+        ? 'relative isolate z-40 rounded-2xl border border-sky-200/70 bg-white/80 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.1)] backdrop-blur-xl'
+        : 'relative isolate z-40 rounded-2xl border border-cyan-400/25 bg-slate-950/55 p-3 shadow-[0_20px_48px_rgba(2,6,23,0.65)] backdrop-blur-xl';
     const filterControlBase = [
         'kanban-filter-control rounded-[10px] border px-4 py-2 text-sm transition',
         'shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(2,6,23,0.4)]',
@@ -899,10 +1211,10 @@ const Tasks: React.FC = () => {
         filterPlaceholderClass,
     ].join(' ');
     const dropdownMenuClass = isLight
-        ? 'border-slate-200 bg-white/95 text-slate-800 shadow-[0_20px_45px_rgba(15,23,42,0.18)]'
+        ? 'border-slate-200 bg-white text-slate-800 shadow-[0_20px_45px_rgba(15,23,42,0.18)]'
         : isColorful
-            ? 'border-fuchsia-300/40 bg-[#120a2e]/95 text-white shadow-[0_20px_45px_rgba(30,27,75,0.7)]'
-            : 'border-slate-500/40 bg-[#081229]/95 text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.7)]';
+            ? 'border-fuchsia-300/40 bg-[#120a2e] text-white shadow-[0_20px_45px_rgba(30,27,75,0.7)]'
+            : 'border-slate-500/40 bg-[#081229] text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.7)]';
     const dropdownItemClass = [
         'w-full px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] transition',
         isLight ? 'text-slate-700 hover:bg-slate-200/80' : isColorful ? 'text-white/90 hover:bg-white/10' : 'text-slate-100 hover:bg-white/10',
@@ -913,7 +1225,6 @@ const Tasks: React.FC = () => {
             ? 'bg-fuchsia-500/35 text-white'
             : 'bg-sky-500/30 text-white';
     const dropdownButtonClass = filterSelectClass;
-    const filterColorScheme = isLight ? 'light' : 'dark';
     const countPanelClass = isLight
         ? 'border-sky-200/70 bg-gradient-to-r from-sky-50 via-white to-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.12)]'
         : isColorful
@@ -966,25 +1277,6 @@ const Tasks: React.FC = () => {
         () => [{ value: '', label: 'All Teams' }, ...departmentOptions.map((department) => ({ value: department, label: department }))],
         [departmentOptions],
     );
-    const sortByOptions = useMemo(
-        () => [
-            { value: 'dueAt', label: 'Due Date' },
-            { value: 'priority', label: 'Priority' },
-            { value: 'status', label: 'Status' },
-            { value: 'assignee', label: 'Assignee' },
-            { value: 'lastUpdated', label: 'Last Updated' },
-            { value: 'title', label: 'Title' },
-        ],
-        [],
-    );
-    const sortOrderOptions = useMemo(
-        () => [
-            { value: 'asc', label: 'Ascending' },
-            { value: 'desc', label: 'Descending' },
-        ],
-        [],
-    );
-
     const handleTaskClick = (taskId: string) => {
         setSelectedTaskId(taskId);
     };
@@ -999,75 +1291,48 @@ const Tasks: React.FC = () => {
         refreshTasks();
     };
 
-    if (loading) {
-        return <div className="text-center p-8">Loading tasks...</div>;
-    }
-
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-text-primary">Tasks</h1>
-                <div className="flex gap-2">
-                    {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
-                        <button
-                            onClick={() => setTemplateModalOpen(true)}
-                            className="inline-flex items-center gap-2 rounded-full border border-primary/60 bg-primary/20 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/30"
-                        >
-                            <TagIcon className="h-4 w-4" />
-                            Template
+            <div className="p-1 sm:p-1">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <h1 className="text-3xl font-bold text-text-primary">
+                        Tasks <span className="inline-block align-top text-xl text-cyan-300 sparkle-pulse">*</span>
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
+                            <button onClick={() => setTemplateModalOpen(true)} className={templateButtonClass}>
+                                <TagIcon className="h-4 w-4" />
+                                Templates
+                            </button>
+                        )}
+                        <button onClick={() => setCreateModalOpen(true)} className={createTaskButtonClass}>
+                            + Create Task
                         </button>
-                    )}
-                    <button
-                        onClick={() => setCreateModalOpen(true)}
-                        className="inline-flex items-center gap-2 rounded-full border border-primary/60 bg-primary/20 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/30"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Create Task
-                    </button>
-                </div>
-            </div>
-
-            <div className={`rounded-3xl border p-5 ${questFilterPanelClass}`}>
-                <div className="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
-                    <div className="space-y-1">
-                        <p className={`text-[10px] uppercase tracking-[0.5em] ${questFilterMetaClass}`}>Quest Filter</p>
-                        <h2 className={`text-xl font-semibold ${questFilterTitleClass}`}>Task Created By Me</h2>
-                        <p className={`text-sm ${questFilterBodyClass}`}>
-                            Focus on the missions you spawned and keep them front and center.
-                        </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setQuickFilter(createdByFilterActive ? '' : 'createdByMe')}
-                        className={createdByFilterClass}
-                        aria-pressed={createdByFilterActive}
-                        title="Show tasks you created"
-                    >
-                        <span className={`pointer-events-none absolute inset-0 rounded-full ${createdByFilterTheme.sheen} saber-shift opacity-90`} />
-                        <span className={`pointer-events-none absolute inset-0 rounded-full ${createdByFilterTheme.halo} opacity-90`} />
-                        <span className={`pointer-events-none absolute -inset-4 rounded-full ${createdByFilterTheme.glow} blur-2xl opacity-80 transition duration-300 group-hover:opacity-100`} />
-                        <span className="relative z-10 flex items-center gap-3">
-                            <span className="relative flex h-3 w-3">
-                                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${createdByFilterTheme.ping}`} />
-                                <span
-                                    className={
-                                        createdByFilterActive
-                                            ? `relative inline-flex h-3 w-3 rounded-full ${createdByFilterTheme.dotActive}`
-                                            : `relative inline-flex h-3 w-3 rounded-full ${createdByFilterTheme.dotInactive}`
-                                    }
-                                />
-                            </span>
-                            <span>Task Created By Me</span>
-                        </span>
-                    </button>
                 </div>
             </div>
 
-            <div className="rounded-2xl border border-rose-400/30 bg-gradient-to-r from-rose-950/80 via-slate-950/90 to-amber-950/80 px-4 py-3 shadow-[0_20px_50px_rgba(190,18,60,0.2)]">
+            <div className="mission-updates rounded-2xl border border-rose-400/30 bg-gradient-to-r from-rose-950/80 via-slate-950/90 to-amber-950/80 px-4 py-3 shadow-[0_20px_50px_rgba(190,18,60,0.2)]">
                 <style>{`
                     @keyframes taskNewsTicker {
                         0% { transform: translateX(0); }
                         100% { transform: translateX(-50%); }
+                    }
+                    .mission-updates:hover .mission-ticker-track {
+                        animation-play-state: paused;
+                    }
+                    .sparkle-pulse {
+                        animation: sparklePulse 2.8s ease-in-out infinite;
+                    }
+                    @keyframes sparklePulse {
+                        0%, 100% { transform: translateY(0); opacity: 0.9; }
+                        50% { transform: translateY(-2px); opacity: 1; }
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                        .mission-ticker-track,
+                        .sparkle-pulse {
+                            animation: none !important;
+                        }
                     }
                 `}</style>
                 <div className="flex items-center gap-3">
@@ -1079,7 +1344,7 @@ const Tasks: React.FC = () => {
                             <span className="text-sm text-white/80">No task updates yet.</span>
                         ) : (
                             <div
-                                className="flex w-max items-center gap-6 pr-8 text-sm text-white/90"
+                                className="mission-ticker-track flex w-max items-center gap-6 pr-8 text-sm text-white/90"
                                 style={shouldAnimateNews ? { animation: 'taskNewsTicker 130s linear infinite' } : undefined}
                             >
                                 {newsTickerItems.map((item, index) => (
@@ -1133,197 +1398,292 @@ const Tasks: React.FC = () => {
                 </div>
             )}
 
-            {/* Filters and Sorting */}
-            <div className="flex flex-wrap gap-4 items-center">
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                    className={`${filterInputClass} min-w-[220px]`}
-                    placeholder="Search tasks"
-                />
-                <FilterDropdown
-                    value={statusFilter}
-                    placeholder="All Statuses"
-                    options={statusOptions}
-                    onChange={setStatusFilter}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <FilterDropdown
-                    value={priorityFilter}
-                    placeholder="All Priorities"
-                    options={priorityOptions}
-                    onChange={setPriorityFilter}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <FilterDropdown
-                    value={assigneeFilter}
-                    placeholder="All Assignees"
-                    options={assigneeOptions}
-                    onChange={setAssigneeFilter}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <FilterDropdown
-                    value={teamFilter}
-                    placeholder="All Teams"
-                    options={teamOptions}
-                    onChange={setTeamFilter}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <input
-                    type="text"
-                    value={tagFilter}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTagFilter(e.target.value)}
-                    className={filterInputClass}
-                    placeholder="Filter by Tag"
-                />
-                <input
-                    type="date"
-                    value={dueDateFilter}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDueDateFilter(e.target.value)}
-                    className={filterInputClass}
-                    placeholder="Due Date"
-                    style={{ colorScheme: filterColorScheme }}
-                />
-                <input
-                    type="date"
-                    value={creationDateFilter}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreationDateFilter(e.target.value)}
-                    className={filterInputClass}
-                    placeholder="Creation Date"
-                    style={{ colorScheme: filterColorScheme }}
-                />
-                <FilterDropdown
-                    value={sortBy}
-                    placeholder="Sort By"
-                    options={sortByOptions}
-                    onChange={setSortBy}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <FilterDropdown
-                    value={sortOrder}
-                    placeholder="Sort Order"
-                    options={sortOrderOptions}
-                    onChange={(value) => setSortOrder(value as 'asc' | 'desc')}
-                    buttonClassName={dropdownButtonClass}
-                    menuClassName={dropdownMenuClass}
-                    itemClassName={dropdownItemClass}
-                    activeItemClassName={dropdownItemActiveClass}
-                />
-                <div className="flex gap-2">
+            <div className={`${toolbarPanelClass} mb-4`}>
+                <div className="flex flex-wrap items-start gap-2 pb-2">
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                        className={`${filterInputClass} w-full lg:w-[400px] lg:flex-none`}
+                        placeholder="Search Tasks"
+                    />
+                    <FilterDropdown
+                        value={statusFilter}
+                        placeholder="All Statuses"
+                        options={statusOptions}
+                        onChange={setStatusFilter}
+                        buttonClassName={dropdownButtonClass}
+                        menuClassName={dropdownMenuClass}
+                        itemClassName={dropdownItemClass}
+                        activeItemClassName={dropdownItemActiveClass}
+                    />
+                    <FilterDropdown
+                        value={priorityFilter}
+                        placeholder="All Priorities"
+                        options={priorityOptions}
+                        onChange={setPriorityFilter}
+                        buttonClassName={dropdownButtonClass}
+                        menuClassName={dropdownMenuClass}
+                        itemClassName={dropdownItemClass}
+                        activeItemClassName={dropdownItemActiveClass}
+                    />
+                    <FilterDropdown
+                        value={assigneeFilter}
+                        placeholder="All Assignees"
+                        options={assigneeOptions}
+                        onChange={setAssigneeFilter}
+                        buttonClassName={dropdownButtonClass}
+                        menuClassName={dropdownMenuClass}
+                        itemClassName={dropdownItemClass}
+                        activeItemClassName={dropdownItemActiveClass}
+                        searchable
+                        searchPlaceholder="Search assignee..."
+                        emptyStateText="No assignee found."
+                    />
+                    <FilterDropdown
+                        value={teamFilter}
+                        placeholder="All Teams"
+                        options={teamOptions}
+                        onChange={setTeamFilter}
+                        buttonClassName={dropdownButtonClass}
+                        menuClassName={dropdownMenuClass}
+                        itemClassName={dropdownItemClass}
+                        activeItemClassName={dropdownItemActiveClass}
+                    />
+                    <div ref={dateRangeRef} className="relative min-w-[220px]">
+                        <button
+                            ref={dateRangeButtonRef}
+                            type="button"
+                            className={`${dropdownButtonClass} flex w-full items-center justify-between gap-3 text-left`}
+                            onClick={() => setDateRangeOpen((prev) => !prev)}
+                            aria-haspopup="dialog"
+                            aria-expanded={isDateRangeOpen}
+                        >
+                            <span className={dueDateFilter ? '' : 'opacity-80'}>{dateRangeLabel}</span>
+                            <ChevronIcon open={isDateRangeOpen} className="h-4 w-4 shrink-0 opacity-80 transition" />
+                        </button>
+                        {isDateRangeOpen && typeof document !== 'undefined' && createPortal(
+                            <div
+                                ref={dateRangePanelRef}
+                                style={dateRangePanelStyle}
+                                className={`rounded-xl border p-3 ${dropdownMenuClass}`}
+                            >
+                                <div className="mb-2 grid grid-cols-4 gap-2">
+                                    {([
+                                        { key: '7d', label: '7D' },
+                                        { key: '30d', label: '30D' },
+                                        { key: 'mtd', label: 'MTD' },
+                                        { key: 'ytd', label: 'YTD' },
+                                    ] as const).map((option) => (
+                                        <button
+                                            key={option.key}
+                                            type="button"
+                                            onClick={() => applyDatePreset(option.key)}
+                                            className={[
+                                                'rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition',
+                                                activeDatePreset === option.key
+                                                    ? 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
+                                                    : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
+                                            ].join(' ')}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">From</label>
+                                    <input
+                                        type="date"
+                                        value={dateRangeTokens.start}
+                                        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                            updateDateRange(event.target.value, dateRangeTokens.end)
+                                        }
+                                        className={filterInputClass}
+                                    />
+                                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">To</label>
+                                    <input
+                                        type="date"
+                                        value={dateRangeTokens.end}
+                                        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                                            updateDateRange(dateRangeTokens.start, event.target.value)
+                                        }
+                                        className={filterInputClass}
+                                    />
+                                </div>
+                                <div className="mt-3 flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100"
+                                        onClick={() => {
+                                            setDueDateFilter('');
+                                            setCreationDateFilter('');
+                                            setActiveDatePreset('');
+                                        }}
+                                    >
+                                        Clear
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white"
+                                        onClick={() => setDateRangeOpen(false)}
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </div>,
+                            document.body,
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                         onClick={() => setQuickFilter(quickFilter === 'myTasks' ? '' : 'myTasks')}
-                        className={getQuickFilterButtonClass(quickFilter === 'myTasks')}
+                        className={myTasksTone.className}
                     >
                         <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
                         <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
                         <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">My Tasks</span>
+                        <span className="relative z-10 inline-flex items-center gap-2"><span className={myTasksTone.iconClassName}>{'\u{1F464}'}</span>My Tasks</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setQuickFilter(createdByFilterActive ? '' : 'createdByMe')}
+                        className={createdByTone.className}
+                        aria-pressed={createdByFilterActive}
+                        title="Show tasks you created"
+                    >
+                        <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+                        <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+                        <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+                        <span className="relative z-10 inline-flex items-center gap-2"><span className={createdByTone.iconClassName}>{'\u2728'}</span>Task Created By Me</span>
                     </button>
                     <button
                         onClick={() => setQuickFilter(quickFilter === 'overdue' ? '' : 'overdue')}
-                        className={getQuickFilterButtonClass(quickFilter === 'overdue')}
+                        className={overdueTone.className}
                     >
                         <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
                         <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
                         <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">Overdue</span>
+                        <span className="relative z-10 inline-flex items-center gap-2"><span className={overdueTone.iconClassName}>{'\u26A0\uFE0F'}</span>Overdue</span>
                     </button>
                     <button
                         onClick={() => setQuickFilter(quickFilter === 'completed' ? '' : 'completed')}
-                        className={getQuickFilterButtonClass(quickFilter === 'completed')}
+                        className={completedTone.className}
                     >
                         <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
                         <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
                         <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">Completed</span>
+                        <span className="relative z-10 inline-flex items-center gap-2"><span className={completedTone.iconClassName}>{'\u2713'}</span>Completed</span>
                     </button>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <button
-                        onClick={() => changeViewMode('list')}
-                        className={getQuickFilterButtonClass(viewMode === 'list')}
-                        title="List View"
-                    >
-                        <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
-                        <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
-                        <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">List</span>
-                    </button>
-                    <button
-                        onClick={() => changeViewMode('grid')}
-                        className={getQuickFilterButtonClass(viewMode === 'grid')}
-                        title="Grid View"
-                    >
-                        <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
-                        <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
-                        <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">Grid</span>
-                    </button>
-                    <button
-                        onClick={() => changeViewMode('kanban')}
-                        className={getQuickFilterButtonClass(viewMode === 'kanban')}
-                        title="Kanban View"
-                    >
-                        <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
-                        <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
-                        <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
-                        <span className="relative z-10">Kanban</span>
-                    </button>
-                </div>
 
-                {/* Bulk Action Buttons - Always visible next to filters */}
-                <div className="flex items-center gap-2 ml-4">
-                    <button
-                        onClick={toggleSelectAll}
-                        className="rounded-full border border-border-color px-4 py-2 text-sm font-medium transition hover:border-primary hover:bg-primary/10 disabled:opacity-50"
-                        disabled={visibleTaskIds.length === 0}
-                        title={allSelected ? "Deselect all visible tasks" : "Select all visible tasks"}
-                    >
-                        {allSelected ? "Deselect All" : "Select All"}
-                    </button>
-                    {/* <button
-                        onClick={deselectAllTasks}
-                        className="rounded-full border border-border-color px-4 py-2 text-sm font-medium transition hover:border-primary hover:bg-primary/10 disabled:opacity-50"
-                        disabled={selectedTaskIds.size === 0}
-                        title="Deselect all selected tasks"
-                    >
-                        Deselect All
-                    </button> */}
-                    <button
-                        onClick={handleBulkDelete}
-                        className="rounded-full border border-red-400/50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:border-red-400 disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400"
-                        disabled={selectedTaskIds.size === 0}
-                        title="Delete all selected tasks"
-                    >
-                        Delete Selected ({selectedTaskIds.size})
-                    </button>
+                    <div className="ml-auto flex items-center gap-2 pointer-events-none">
+                        <button
+                            onClick={() => changeViewMode('list')}
+                            className={[listTone.className, 'pointer-events-auto'].join(' ')}
+                            title="List View"
+                        >
+                            <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+                            <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+                            <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+                            <span className="relative z-10 inline-flex items-center gap-2"><span className={listTone.iconClassName}>{'\u2637'}</span>List</span>
+                        </button>
+                        <button
+                            onClick={() => changeViewMode('grid')}
+                            className={[gridTone.className, 'pointer-events-auto'].join(' ')}
+                            title="Grid View"
+                        >
+                            <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+                            <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+                            <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+                            <span className="relative z-10 inline-flex items-center gap-2"><span className={gridTone.iconClassName}>{'\u25A6'}</span>Grid</span>
+                        </button>
+                        <button
+                            onClick={() => changeViewMode('kanban')}
+                            className={[kanbanTone.className, 'pointer-events-auto'].join(' ')}
+                            title="Kanban View"
+                        >
+                            <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+                            <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+                            <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+                            <span className="relative z-10 inline-flex items-center gap-2"><span className={kanbanTone.iconClassName}>{'\u25A5'}</span>Kanban</span>
+                        </button>
+                        {viewMode === 'kanban' && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        if (!canScrollKanbanLeft) return;
+                                        scrollKanbanColumns('left');
+                                    }}
+                                    disabled={!canScrollKanbanLeft}
+                                    aria-label="Scroll kanban left"
+                                    className="group pointer-events-auto relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-cyan-300/45 disabled:hover:text-cyan-100 disabled:hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)]"
+                                    title="Previous kanban section"
+                                >
+                                    <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
+                                    <span className="pointer-events-none absolute inset-x-2 top-1 z-0 h-px bg-white/35" />
+                                    <span className="pointer-events-none relative z-10 text-lg leading-none">{'\u2039'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        if (!canScrollKanbanRight) return;
+                                        scrollKanbanColumns('right');
+                                    }}
+                                    disabled={!canScrollKanbanRight}
+                                    aria-label="Scroll kanban right"
+                                    className="group pointer-events-auto relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-cyan-300/45 disabled:hover:text-cyan-100 disabled:hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)]"
+                                    title="Next kanban section"
+                                >
+                                    <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
+                                    <span className="pointer-events-none absolute inset-x-2 top-1 z-0 h-px bg-white/35" />
+                                    <span className="pointer-events-none relative z-10 text-lg leading-none">{'\u203A'}</span>
+                                </button>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={toggleSelectAll}
+                            className={[selectAllTone.className, 'px-1.5 py-0.9 text-[10px] font-semibold disabled:opacity-50'].join(' ')}
+                            disabled={visibleTaskIds.length === 0}
+                            title={allSelected ? 'Deselect all visible tasks' : 'Select all visible tasks'}
+                        >
+                            <span className="relative z-10 inline-flex items-center gap-2"><span className={selectAllTone.iconClassName}>{'\u2611'}</span>{allSelected ? 'Deselect All' : 'Select All'}</span>
+                        </button>
+                        <button
+                            onClick={handleBulkDelete}
+                            className="rounded-full border border-red-500 bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-50 disabled:border-gray-500 disabled:bg-gray-700 disabled:text-gray-300"
+                            disabled={selectedTaskIds.size === 0}
+                            title="Delete all selected tasks"
+                        >
+                            Delete Selected ({selectedTaskIds.size})
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="relative z-0 grid gap-4 transition-opacity duration-300 ease-out">
+                {loading && (
+                    <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center pt-6">
+                        <span className="rounded-full border border-cyan-300/35 bg-slate-900/55 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.22)] backdrop-blur-sm">
+                            Updating...
+                        </span>
+                    </div>
+                )}
                 {viewMode === 'list' && pagedTasks.map((task) => {
-                    const theme = { ...DEFAULT_THEME, ...(TASK_STATUS_THEME[task.status] || {}) };
                     const showReadMore = task.description.trim().length > 100;
                     return (
                         <div
                             key={task.id}
-                            className={`rounded-2xl border border-border-color p-4 bg-gradient-to-r ${theme.gradient} ${theme.glow} transition-all duration-300 hover:scale-[1.02] cursor-pointer`}
+                            className={`rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer ${isContentFading ? 'opacity-65' : 'opacity-100'}`}
+                            style={stageCardStyle(task.status)}
                             onMouseEnter={() => prefetchTaskDetail(task.id)}
                             onFocus={() => prefetchTaskDetail(task.id)}
                             onClick={() => handleTaskClick(task.id)}
@@ -1358,14 +1718,14 @@ const Tasks: React.FC = () => {
                     );
                 })}
                 {viewMode === 'grid' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 transition-opacity duration-300 ease-out ${isContentFading ? 'opacity-65' : 'opacity-100'}`}>
                         {pagedTasks.map((task) => {
-                            const theme = TASK_STATUS_THEME[task.status] || DEFAULT_THEME;
                             const showReadMore = task.description.trim().length > 100;
                             return (
                                 <div
                                     key={task.id}
-                                    className={`relative rounded-2xl border border-border-color p-4 bg-gradient-to-r ${theme.gradient} ${theme.glow} transition-all duration-300 hover:scale-[1.02] cursor-pointer`}
+                                    className="relative rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                                    style={stageCardStyle(task.status)}
                                     onMouseEnter={() => prefetchTaskDetail(task.id)}
                                     onFocus={() => prefetchTaskDetail(task.id)}
                                     onClick={() => handleTaskClick(task.id)}
@@ -1400,7 +1760,15 @@ const Tasks: React.FC = () => {
                     </div>
                 )}
                 {viewMode === 'kanban' && (
-                    <div className="flex gap-4 overflow-x-auto">
+                    <div className="min-w-0 space-y-2">
+                    <style>{`.tasks-kanban-theme, .tasks-kanban-theme * { color: inherit !important; }`}</style>
+                    <div className="tasks-kanban-theme min-w-0" style={{ color: kanbanTextColor }}>
+                    <div
+                        ref={kanbanScrollRef}
+                        className="w-full max-w-full overflow-x-auto overflow-y-hidden pb-1 scroll-smooth touch-pan-x"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
+                        <div ref={kanbanTrackRef} className="flex w-max min-w-full snap-x snap-mandatory gap-4">
                         {kanbanLoading && (
                             <div className="rounded-lg border border-border-color bg-surface/70 p-4 text-sm text-text-secondary">
                                 Loading kanban...
@@ -1411,44 +1779,63 @@ const Tasks: React.FC = () => {
                                 No tasks available.
                             </div>
                         )}
-                        {(kanbanData?.columns ?? []).map((column) => (
-                            <div key={column.status} className="min-w-[300px] bg-surface rounded-lg p-4">
+                        {(kanbanData?.columns ?? []).map((column) => {
+                            const status = column.status as TaskStatus;
+                            const columnLabel = column.title || CUSTOM_STATUS_NAMES[column.status]?.name || column.status;
+                            const isDropZoneHint = column.items.length === 0;
+
+                            return (
+                            <div
+                                key={column.status}
+                                className="min-w-[250px] max-w-[280px] shrink-0 snap-start rounded-2xl border p-4 backdrop-blur-sm"
+                                style={stageColumnStyle(status)}
+                            >
                                 <h2
-                                    className="mb-4 font-semibold text-text-primary"
+                                    className="mb-4 font-semibold"
                                     title={CUSTOM_STATUS_NAMES[column.status]?.tooltip ?? 'Status info unavailable'}
                                 >
-                                    {column.title || CUSTOM_STATUS_NAMES[column.status]?.name || column.status}
+                                    {columnLabel}
                                 </h2>
+                                {isDropZoneHint && (
+                                    <div className="mb-3 rounded-2xl border border-dashed border-white/25 bg-white/5 px-4 py-3 text-center text-sm text-white/70">
+                                        Drop quests here
+                                    </div>
+                                )}
                                 <div className="flex flex-col gap-3">
                                     {column.items.map((task) => {
                                         const showReadMore = task.description.trim().length > 100;
                                         return (
                                             <div
                                                 key={task.id}
-                                                className="rounded-lg border border-border-color bg-white p-3 shadow-sm"
+                                                className="rounded-2xl border border-white/15 bg-white/10 p-4 text-white shadow-[0_18px_40px_rgba(15,23,42,0.45)] transition hover:-translate-y-2 hover:shadow-xl"
                                                 onMouseEnter={() => prefetchTaskDetail(task.id)}
                                             >
-                                                <h3 className="min-h-[3rem] font-semibold text-text-primary line-clamp-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                <h3 className="min-h-[3rem] font-semibold text-white line-clamp-2">
                                                     {task.title}
                                                 </h3>
-                                                <p className="min-h-[2.5rem] text-sm text-text-secondary line-clamp-2 break-words overflow-hidden">
+                                                <span className="rounded-full border px-3 py-1 text-xs font-semibold" style={priorityPillStyle(task.priority)}>
+                                                    {formatPriority(task.priority)}
+                                                </span>
+                                                </div>
+                                                <p className="min-h-[2.5rem] text-sm text-white/80 line-clamp-2 break-words overflow-hidden">
                                                     {task.description}
                                                 </p>
                                                 {showReadMore && (
-                                                    <span className="mt-1 inline-block text-xs font-semibold text-primary/80">
+                                                    <span className="mt-1 inline-block text-xs font-semibold text-cyan-200/90">
                                                         Read more..
                                                     </span>
                                                 )}
-                                                <div className="mt-2 flex items-center gap-2">
-                                                    <TaskPriorityBadge priority={task.priority} />
-                                                    <span className="text-xs text-text-secondary">
-                                                        Assigned to: {formatAssigneeNames(task.assignedTo)}
-                                                    </span>
+                                                <div className="mt-3 grid gap-1 text-xs text-white/80">
+                                                    <div>Created by: {task.createdByName || usersMap.get(task.createdBy ?? '')?.name || 'Unknown'}</div>
+                                                    <div>Created at: {formatDate(task.createdAt, true)}</div>
+                                                    <div>Assigned to: {formatAssigneeNames(task.assignedTo)}</div>
+                                                    <div>Due date: {formatDate(task.dueAt)}</div>
                                                 </div>
                                                 <button
                                                     onMouseEnter={() => prefetchTaskDetail(task.id)}
                                                     onClick={() => handleTaskClick(task.id)}
-                                                    className="mt-2 w-full rounded-full border border-primary/60 bg-primary/20 px-3 py-1 text-sm font-semibold text-primary transition hover:bg-primary/30 hover:border-primary"
+                                                    className="mt-3 w-full rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20"
                                                 >
                                                     View
                                                 </button>
@@ -1457,13 +1844,16 @@ const Tasks: React.FC = () => {
                                     })}
                                 </div>
                             </div>
-                        ))}
+                        );})}
+                        </div>
+                    </div>
+                    </div>
                     </div>
                 )}
             </div>
 
             {/* Bottom buttons removed - now at top */}
-            <div className="mt-6 grid gap-3 text-xs text-text-secondary md:grid-cols-[1fr_auto_1fr] md:items-center">
+            <div className={`mt-6 grid gap-3 text-xs md:grid-cols-[1fr_auto_1fr] md:items-center ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-secondary'}`}>
                 <div className="flex items-center gap-2 md:justify-start">
                     <span className="text-xs uppercase tracking-[0.2em]">Rows</span>
                     <select
@@ -1472,7 +1862,7 @@ const Tasks: React.FC = () => {
                             const nextValue = Number(event.target.value);
                             setPageSizeByView((prev) => ({ ...prev, [viewMode]: nextValue }));
                         }}
-                        className="rounded-full border border-border-color bg-transparent px-3 py-2 text-sm font-medium text-text-primary shadow-[0_0_12px_rgba(56,189,248,0.2)]"
+                        className={`rounded-full border border-border-color bg-transparent px-3 py-2 text-sm font-medium shadow-[0_0_12px_rgba(56,189,248,0.2)] ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
                     >
                         {[10, 20, 50, 100].map((value) => (
                             <option key={value} value={value}>
@@ -1487,7 +1877,7 @@ const Tasks: React.FC = () => {
                             type="button"
                             onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
-                            className="rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-text-primary shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50"
+                            className={`rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50 ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
                         >
                             Prev page
                         </button>
@@ -1495,7 +1885,7 @@ const Tasks: React.FC = () => {
                             type="button"
                             onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages}
-                            className="rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-text-primary shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50"
+                            className={`rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50 ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
                         >
                             Next page
                         </button>

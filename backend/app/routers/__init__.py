@@ -1,4 +1,4 @@
-from . import (
+﻿from . import (
     achievements,
     badges,
     avatars,
@@ -10,7 +10,6 @@ from . import (
     approvals,
     kanban,
     levels,
-    reporting,
     feature_flags,
     n8n,
     notifications,
@@ -45,7 +44,6 @@ __all__ = [
     "approvals",
     "kanban",
     "levels",
-    "reporting",
     "feature_flags",
     "n8n",
     "notifications",

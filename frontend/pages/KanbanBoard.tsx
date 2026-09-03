@@ -12,6 +12,7 @@ import Tooltip from '../components/ui/Tooltip';
 import { formatDate, formatTaskStatus } from '../utils';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { augmentTasksWithPoints, summarizeTaskPoints, formatPointsValue, normalizeDepartmentKey } from '../utils/taskPoints';
+import { priorityPillStyle, stageColumnStyle } from '../utils/themeTokens';
 import {
   PlusIcon,
   TrashIcon,
@@ -63,7 +64,7 @@ const useResolvedTheme = (theme: ThemeMode): ResolvedTheme => {
 type StatusDetail = {
   label: string;
   legend: string;
-  gradient: string;
+  stageToken: string;
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
 };
 
@@ -72,64 +73,57 @@ const statusDetails: { [K in TaskStatus]: StatusDetail } = {
   [TaskStatus.WAITING_FOR_REQUIREMENT]: {
     label: 'Battle Plan',
     legend: 'New / Ready',
-    gradient: 'from-slate-500/30 via-slate-600/30 to-slate-800/40',
+    stageToken: '--color-stage-battle',
     icon: RocketLaunchIcon,
   },
   [TaskStatus.TODO]: {
     label: 'Case Filed',
     legend: 'Assigned / To Do',
-    gradient: 'from-indigo-500/25 via-sky-500/25 to-cyan-500/35',
+    stageToken: '--color-stage-case',
     icon: ClipboardDocumentListIcon,
   },
   [TaskStatus.IN_PROGRESS]: {
     label: 'In Progress',
     legend: 'In Progress',
-    gradient: 'from-purple-500/25 via-fuchsia-500/25 to-rose-500/35',
+    stageToken: '--color-stage-progress',
     icon: PuzzlePieceIcon,
   },
   [TaskStatus.BLOCKED]: {
     label: 'Boss Encounter',
     legend: 'Blocked / Critical',
-    gradient: 'from-amber-500/25 via-orange-500/25 to-rose-500/35',
+    stageToken: '--color-stage-boss',
     icon: FireIcon,
   },
   [TaskStatus.IN_REVIEW]: {
     label: 'Tactical Shift',
     legend: 'Review / Adjust before completion',
-    gradient: 'from-emerald-500/25 via-teal-500/25 to-sky-400/35',
+    stageToken: '--color-stage-tactical',
     icon: AcademicCapIcon,
   },
   [TaskStatus.ON_HOLD]: {
     label: 'On Hold',
     legend: 'Paused / Waiting',
-    gradient: 'from-slate-400/25 via-slate-500/25 to-slate-600/35',
+    stageToken: '--color-stage-hold',
     icon: QuestionMarkCircleIcon,
   },
   [TaskStatus.DONE]: {
     label: 'Conquered',
     legend: 'Completed – Level Rewards',
-    gradient: 'from-green-500/25 via-emerald-500/25 to-teal-500/35',
+    stageToken: '--color-stage-conquered',
     icon: TrophyIcon,
   },
   [TaskStatus.FAILED]: {
     label: 'Fallen',
     legend: 'Mission Failed – Could not complete',
-    gradient: 'from-red-500/25 via-rose-500/25 to-pink-500/35',
+    stageToken: '--color-stage-fallen',
     icon: XMarkIcon,
   },
   [TaskStatus.GRAVEYARD]: {
     label: 'Graveyard',
     legend: 'For inactive / archived tasks',
-    gradient: 'from-gray-500/25 via-gray-600/25 to-gray-700/30',
+    stageToken: '--color-stage-graveyard',
     icon: NoSymbolIcon,
   },
-};
-
-const priorityStyles: Record<TaskPriority, string> = {
-  [TaskPriority.LOW]: 'bg-emerald-400/15 text-emerald-200 border border-emerald-300/30',
-  [TaskPriority.MEDIUM]: 'bg-sky-400/15 text-sky-200 border border-sky-300/30',
-  [TaskPriority.HIGH]: 'bg-amber-400/15 text-amber-200 border border-amber-300/30',
-  [TaskPriority.URGENT]: 'bg-rose-500/20 text-rose-100 border border-rose-400/40',
 };
 
 const overdueExcludedStatuses = new Set<TaskStatus>([
@@ -145,11 +139,55 @@ const formatPriority = (value: TaskPriority) =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
+const parseRangeToken = (value: string): { start: string; end: string } => {
+  if (!value) {
+    return { start: '', end: '' };
+  }
+  const [start, end] = value.split('..');
+  if (!end) {
+    return { start: value, end: value };
+  }
+  return { start, end };
+};
+
+const formatRangeLabel = (value: string): string => {
+  if (!value) {
+    return 'Date Range';
+  }
+  const { start, end } = parseRangeToken(value);
+  if (!start) {
+    return 'Date Range';
+  }
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end || start}T00:00:00`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return 'Date Range';
+  }
+  const startLabel = startDate.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+  const endLabel = endDate.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+  return start === (end || start) ? startLabel : `${startLabel} - ${endLabel}`;
+};
+
+const toIsoDate = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, onClick, onEdit, theme, user }) => {
-  const isDark = theme === 'dark';
-  const cardSurface = isDark
-    ? 'border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(15,23,42,0.45)]'
-    : 'border-slate-200 bg-white shadow-sm';
+  const isLight = theme === 'light';
+  const cardSurface = isLight
+    ? 'border-slate-200 bg-white shadow-sm'
+    : 'border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(15,23,42,0.45)]';
+  const cardTextPrimaryClass = isLight ? 'text-black' : 'text-white';
+  const cardTextMutedClass = isLight ? 'text-black/75' : 'text-white/75';
 
   const assigneeNames = assignees.length > 0 ? assignees.map((a: any) => a.name).join(', ') : 'Unassigned';
   const pointsSummary = task.pointsBreakdown ? summarizeTaskPoints(task.pointsBreakdown) : null;
@@ -164,16 +202,16 @@ const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, 
       className={`rounded-2xl border p-4 transition hover:-translate-y-2 hover:shadow-xl ${cardSurface}`}
     >
       <div className="flex justify-between items-start">
-        <p className="min-h-[4.5rem] font-semibold text-sm line-clamp-3">{task.title}</p>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${priorityStyles[task.priority]}`}>
+        <p className={`min-h-[4.5rem] font-semibold text-sm line-clamp-3 ${cardTextPrimaryClass}`}>{task.title}</p>
+        <span className="rounded-full border px-3 py-1 text-xs font-semibold" style={priorityPillStyle(task.priority)}>
           {formatPriority(task.priority)}
         </span>
       </div>
-      <p className="min-h-[2.5rem] text-xs mt-2 leading-5 opacity-70 line-clamp-2 break-words overflow-hidden">{task.description}</p>
+      <p className={`min-h-[2.5rem] text-xs mt-2 leading-5 line-clamp-2 break-words overflow-hidden ${cardTextMutedClass}`}>{task.description}</p>
       {showReadMore && (
         <span className="mt-1 inline-block text-xs font-semibold text-primary/80">Read more..</span>
       )}
-      <div className="mt-3 grid gap-1 text-xs opacity-75">
+      <div className={`mt-3 grid gap-1 text-xs ${cardTextMutedClass}`}>
         <div>Created by: {createdByName}</div>
         <div>Created at: {formatDate(task.createdAt, true)}</div>
         <div>Assigned to: {assigneeNames}</div>
@@ -181,7 +219,7 @@ const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, 
       </div>
 
       {pointsSummary && (
-        <div className="mt-2 text-[11px] opacity-80">
+        <div className={`mt-2 text-[11px] ${cardTextMutedClass}`}>
           {pointsSummary.label}: {formatPointsValue(pointsSummary.value)}
         </div>
       )}
@@ -189,14 +227,14 @@ const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, 
       <div className="mt-3 flex gap-2">
         <button
           onClick={() => onClick(task.id)}
-          className="flex-1 rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm text-blue-400 hover:bg-blue-500/20"
+          className={`flex-1 rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm hover:bg-blue-500/20 ${cardTextPrimaryClass}`}
         >
           View
         </button>
         {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
           <button
             onClick={() => onEdit(task.id)}
-            className="flex-1 rounded-full border border-amber-400 bg-amber-500/10 px-3 py-1 text-sm text-amber-400 hover:bg-amber-500/20"
+            className={`flex-1 rounded-full border border-amber-400 bg-amber-500/10 px-3 py-1 text-sm hover:bg-amber-500/20 ${cardTextPrimaryClass}`}
           >
             Edit
           </button>
@@ -309,7 +347,11 @@ const KanbanBoard: React.FC = () => {
   const resolvedTheme = useResolvedTheme(theme as ThemeMode);
   const isColorful = resolvedTheme === 'colorful';
   const isLight = resolvedTheme === 'light';
+  const boardTextClass = isLight ? 'text-black' : 'text-white';
+  const boardMutedTextClass = isLight ? 'text-black/70' : 'text-white/70';
+  const boardTextColorHex = isLight ? '#000000' : '#FFFFFF';
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const dateRangeRef = useRef<HTMLDivElement | null>(null);
   const boardDragState = useRef<{ isDragging: boolean; startX: number; scrollLeft: number }>({
     isDragging: false,
     startX: 0,
@@ -321,12 +363,49 @@ const KanbanBoard: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
-  const [tagFilter, setTagFilter] = useState<string>('');
   const [dueDateFilter, setDueDateFilter] = useState<string>('');
-  const [creationDateFilter, setCreationDateFilter] = useState<string>('');
+  const [isDateRangeOpen, setDateRangeOpen] = useState(false);
+  const [activeDatePreset, setActiveDatePreset] = useState<'7d' | '30d' | 'mtd' | 'ytd' | 'custom' | ''>('');
   const [quickFilter, setQuickFilter] = useState<string>('');
   const [pageSize, setPageSize] = useState<number>(20);
   const [pageIndex, setPageIndex] = useState<number>(0);
+
+  const dateRangeLabel = useMemo(() => formatRangeLabel(dueDateFilter), [dueDateFilter]);
+  const dateRangeTokens = useMemo(() => parseRangeToken(dueDateFilter), [dueDateFilter]);
+
+  const applyDatePreset = useCallback((preset: '7d' | '30d' | 'mtd' | 'ytd') => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let start = new Date(today);
+    if (preset === '7d') {
+      start.setDate(today.getDate() - 6);
+    } else if (preset === '30d') {
+      start.setDate(today.getDate() - 29);
+    } else if (preset === 'mtd') {
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else {
+      start = new Date(today.getFullYear(), 0, 1);
+    }
+    const startIso = toIsoDate(start);
+    const endIso = toIsoDate(today);
+    setDueDateFilter(`${startIso}..${endIso}`);
+    setActiveDatePreset(preset);
+  }, []);
+
+  const updateDateRange = useCallback((start: string, end: string) => {
+    if (!start && !end) {
+      setDueDateFilter('');
+      setActiveDatePreset('');
+      return;
+    }
+
+    const normalizedStart = start || end;
+    const normalizedEnd = end || start;
+    setDueDateFilter(
+      normalizedStart === normalizedEnd ? normalizedStart : `${normalizedStart}..${normalizedEnd}`,
+    );
+    setActiveDatePreset('custom');
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -370,6 +449,32 @@ const KanbanBoard: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!isDateRangeOpen) {
+      return;
+    }
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!dateRangeRef.current || dateRangeRef.current.contains(event.target as Node)) {
+        return;
+      }
+      setDateRangeOpen(false);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDateRangeOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown, { passive: true });
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, [isDateRangeOpen]);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
     e.dataTransfer.setData('taskId', taskId);
@@ -485,19 +590,21 @@ const KanbanBoard: React.FC = () => {
       const normalizedFilter = normalizeDepartmentKey(teamFilter);
       filtered = filtered.filter((task) => normalizeDepartmentKey(task.team) === normalizedFilter);
     }
-    if (tagFilter) {
-      const tagFilterLower = tagFilter.toLowerCase();
-      filtered = filtered.filter((task) => task.tags && task.tags.some(tag => tag.toLowerCase().includes(tagFilterLower)));
-    }
     if (dueDateFilter) {
-      // Assuming dueDateFilter is a date string, filter tasks due on that date
-      filtered = filtered.filter((task) => task.dueAt && new Date(task.dueAt).toDateString() === new Date(dueDateFilter).toDateString());
+      const { start, end } = parseRangeToken(dueDateFilter);
+      const lower = start ? new Date(`${start}T00:00:00`).getTime() : Number.NEGATIVE_INFINITY;
+      const upper = end ? new Date(`${end}T23:59:59`).getTime() : Number.POSITIVE_INFINITY;
+      filtered = filtered.filter((task) => {
+        if (!task.dueAt) {
+          return false;
+        }
+        const dueAt = new Date(task.dueAt).getTime();
+        if (Number.isNaN(dueAt)) {
+          return false;
+        }
+        return dueAt >= lower && dueAt <= upper;
+      });
     }
-    if (creationDateFilter) {
-      // Assuming creationDateFilter is a date string
-      filtered = filtered.filter((task) => task.createdAt && new Date(task.createdAt).toDateString() === new Date(creationDateFilter).toDateString());
-    }
-
     // Apply quick filters
     if (quickFilter === 'createdByMe') {
       filtered = filtered.filter((task) => (user?.id ? task.createdBy === user.id : false));
@@ -515,7 +622,7 @@ const KanbanBoard: React.FC = () => {
     }
 
     return filtered;
-  }, [tasks, debouncedSearchQuery, usersMap, statusFilter, priorityFilter, assigneeFilter, teamFilter, tagFilter, dueDateFilter, creationDateFilter, quickFilter, user?.id]);
+  }, [tasks, debouncedSearchQuery, usersMap, statusFilter, priorityFilter, assigneeFilter, teamFilter, dueDateFilter, quickFilter, user?.id]);
 
   const maxTasksInColumn = useMemo(() => {
     if (!columns.length) return 0;
@@ -537,60 +644,6 @@ const KanbanBoard: React.FC = () => {
     }
   }, [pageIndex, totalPages]);
 
-  const createdByFilterActive = quickFilter === 'createdByMe';
-  const createdByFilterBase =
-    'group relative inline-flex items-center justify-center overflow-hidden rounded-full border-2 px-10 py-5 text-lg font-semibold uppercase tracking-[0.22em] transition duration-300 min-w-[280px] focus-visible:outline-none focus-visible:ring-2';
-  const createdByFilterTheme = isLight
-    ? {
-        surface: 'bg-white/90',
-        active: 'border-sky-500/90 text-slate-900 shadow-[0_0_24px_rgba(56,189,248,0.5)]',
-        inactive: 'border-slate-300/80 text-slate-700 hover:border-sky-400/80 hover:text-slate-900 hover:shadow-[0_0_18px_rgba(56,189,248,0.35)]',
-        ring: 'focus-visible:ring-sky-300/60',
-        glow: 'bg-[radial-gradient(circle,rgba(56,189,248,0.25),transparent_70%)]',
-        saber: 'bg-[linear-gradient(120deg,rgba(56,189,248,0.9),rgba(255,255,255,0.7),rgba(56,189,248,0.9))]',
-        saberGlow: 'bg-[radial-gradient(circle,rgba(56,189,248,0.45),transparent_70%)]',
-        ping: 'bg-sky-400/70',
-        dotActive: 'bg-sky-500 shadow-[0_0_12px_rgba(56,189,248,0.8)]',
-        dotInactive: 'bg-sky-400/80 shadow-[0_0_10px_rgba(56,189,248,0.6)]',
-        sheen: 'bg-[linear-gradient(120deg,rgba(255,255,255,0.6),rgba(125,211,252,0.35),rgba(186,230,253,0.55))]',
-        halo: 'bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_60%)]',
-      }
-    : isColorful
-      ? {
-          surface: 'bg-gradient-to-r from-fuchsia-950/80 via-indigo-950/70 to-sky-950/80',
-          active: 'border-fuchsia-300/90 text-white shadow-[0_0_30px_rgba(217,70,239,0.55)]',
-          inactive: 'border-sky-400/70 text-white/90 hover:border-fuchsia-300/80 hover:text-white hover:shadow-[0_0_24px_rgba(56,189,248,0.45)]',
-          ring: 'focus-visible:ring-fuchsia-300/60',
-          glow: 'bg-[radial-gradient(circle,rgba(217,70,239,0.3),transparent_70%)]',
-          saber: 'bg-[linear-gradient(120deg,rgba(217,70,239,0.9),rgba(56,189,248,0.7),rgba(217,70,239,0.9))]',
-          saberGlow: 'bg-[radial-gradient(circle,rgba(217,70,239,0.5),transparent_70%)]',
-          ping: 'bg-fuchsia-300/70',
-          dotActive: 'bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.9)]',
-          dotInactive: 'bg-sky-300/80 shadow-[0_0_12px_rgba(56,189,248,0.7)]',
-          sheen: 'bg-[linear-gradient(120deg,rgba(216,180,254,0.45),rgba(56,189,248,0.45),rgba(167,139,250,0.45))]',
-          halo: 'bg-[radial-gradient(circle_at_top,rgba(224,231,255,0.45),transparent_60%)]',
-        }
-      : {
-          surface: 'bg-slate-950/80',
-          active: 'border-cyan-300/90 text-cyan-100 shadow-[0_0_35px_rgba(34,211,238,0.7)]',
-          inactive: 'border-cyan-500/60 text-white/90 hover:border-cyan-300/80 hover:text-white hover:shadow-[0_0_30px_rgba(34,211,238,0.55)]',
-          ring: 'focus-visible:ring-cyan-400/70',
-          glow: 'bg-[radial-gradient(circle,rgba(34,211,238,0.3),transparent_70%)]',
-          saber: 'bg-[linear-gradient(120deg,rgba(34,211,238,0.9),rgba(56,189,248,0.6),rgba(34,211,238,0.9))]',
-          saberGlow: 'bg-[radial-gradient(circle,rgba(34,211,238,0.5),transparent_70%)]',
-          ping: 'bg-cyan-300/60',
-          dotActive: 'bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.9)]',
-          dotInactive: 'bg-cyan-200/80 shadow-[0_0_10px_rgba(34,211,238,0.7)]',
-          sheen: 'bg-[linear-gradient(120deg,rgba(6,182,212,0.25),rgba(59,130,246,0.4),rgba(14,116,144,0.25))]',
-          halo: 'bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.35),transparent_60%)]',
-        };
-  const createdByFilterClass = [
-    createdByFilterBase,
-    createdByFilterTheme.surface,
-    createdByFilterActive ? 'saber-pulse scale-[1.01]' : 'hover:scale-[1.01]',
-    createdByFilterActive ? createdByFilterTheme.active : createdByFilterTheme.inactive,
-    createdByFilterTheme.ring,
-  ].join(' ');
   const quickFilterButtonBase = [
     'group relative isolate inline-flex items-center justify-center overflow-hidden rounded-[10px] border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em]',
     'transition duration-200 ease-out active:translate-y-[1px]',
@@ -630,18 +683,6 @@ const KanbanBoard: React.FC = () => {
         };
   const getQuickFilterButtonClass = (isActive: boolean) =>
     [quickFilterButtonBase, isActive ? quickFilterButtonTheme.active : quickFilterButtonTheme.inactive].join(' ');
-  const questFilterPanelClass = isLight
-    ? 'border-sky-200/70 bg-gradient-to-r from-white via-sky-50 to-slate-100 shadow-[0_22px_48px_rgba(15,23,42,0.12)]'
-    : isColorful
-      ? 'border-fuchsia-300/30 bg-gradient-to-r from-indigo-950/85 via-fuchsia-950/75 to-slate-950/90 shadow-[0_24px_54px_rgba(91,33,182,0.45)]'
-      : 'border-cyan-400/30 bg-gradient-to-r from-slate-950/90 via-cyan-950/40 to-slate-950/90 shadow-[0_25px_60px_rgba(8,145,178,0.22)]';
-  const questFilterMetaClass = isLight
-    ? 'text-slate-600'
-    : isColorful
-      ? 'text-fuchsia-200/80'
-      : 'text-cyan-200/80';
-  const questFilterTitleClass = isLight ? 'text-slate-900' : 'text-white';
-  const questFilterBodyClass = isLight ? 'text-slate-600' : 'text-white/70';
   const filterControlBase = [
     'kanban-filter-control rounded-[10px] border px-4 py-2 text-sm transition',
     'shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(2,6,23,0.4)]',
@@ -732,64 +773,20 @@ const KanbanBoard: React.FC = () => {
     [departmentOptions],
   );
 
-  if (loading) return <div className="text-center p-8 text-text-secondary">Loading Battle Board...</div>;
+  if (loading) return <div className={`text-center p-8 ${boardMutedTextClass}`}>Loading Battle Board...</div>;
 
   return (
-    <div className="flex flex-col space-y-6">
-      <h1 className="text-3xl font-bold text-white mb-4">Battle Board ⚔️</h1>
+    <div className={`kanban-theme-text flex flex-col space-y-6 ${boardTextClass}`} style={{ color: boardTextColorHex }}>
+      <h1 className={`text-3xl font-bold mb-4 ${boardTextClass}`}>Battle Board ⚔️</h1>
 
-      <div className={`rounded-3xl border p-5 ${questFilterPanelClass}`}>
-        <div className="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
-          <div className="space-y-1">
-            <p className={`text-[10px] uppercase tracking-[0.5em] ${questFilterMetaClass}`}>Quest Filter</p>
-            <h2 className={`text-xl font-semibold ${questFilterTitleClass}`}>Task Created By Me</h2>
-            <p className={`text-sm ${questFilterBodyClass}`}>Show only the tasks you created across the board.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setQuickFilter(createdByFilterActive ? '' : 'createdByMe')}
-            className={createdByFilterClass}
-            aria-pressed={createdByFilterActive}
-            title="Show tasks you created"
-          >
-            {createdByFilterActive && (
-              <>
-                <span
-                  className={`pointer-events-none absolute -inset-[3px] rounded-full ${createdByFilterTheme.saber} saber-shift opacity-90`}
-                />
-                <span
-                  className={`pointer-events-none absolute -inset-4 rounded-full ${createdByFilterTheme.saberGlow} blur-2xl opacity-80`}
-                />
-              </>
-            )}
-            <span className={`pointer-events-none absolute inset-0 rounded-full ${createdByFilterTheme.sheen} saber-shift opacity-90`} />
-            <span className={`pointer-events-none absolute inset-0 rounded-full ${createdByFilterTheme.halo} opacity-90`} />
-            <span className={`pointer-events-none absolute -inset-4 rounded-full ${createdByFilterTheme.glow} blur-2xl opacity-80 transition duration-300 group-hover:opacity-100`} />
-            <span className="relative z-10 flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${createdByFilterTheme.ping}`} />
-                <span
-                  className={
-                    createdByFilterActive
-                      ? `relative inline-flex h-3 w-3 rounded-full ${createdByFilterTheme.dotActive}`
-                      : `relative inline-flex h-3 w-3 rounded-full ${createdByFilterTheme.dotInactive}`
-                  }
-                />
-              </span>
-              <span>Task Created By Me</span>
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filters and Quick Filters */}
-      <div className="flex flex-wrap gap-4 items-center">
+      <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           type="text"
           value={searchQuery}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-          className={`${filterInputClass} min-w-[220px]`}
-          placeholder="Search tasks"
+          className={`${filterInputClass} min-w-[220px] sm:min-w-[320px]`}
+          placeholder="Search Tasks"
         />
         <FilterDropdown
           value={statusFilter}
@@ -831,30 +828,88 @@ const KanbanBoard: React.FC = () => {
           itemClassName={dropdownItemClass}
           activeItemClassName={dropdownItemActiveClass}
         />
-        <input
-          type="text"
-          value={tagFilter}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTagFilter(e.target.value)}
-          className={filterInputClass}
-          placeholder="Filter by Tag"
-        />
-        <input
-          type="date"
-          value={dueDateFilter}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDueDateFilter(e.target.value)}
-          className={filterInputClass}
-          placeholder="Due Date"
-          style={{ colorScheme: filterColorScheme }}
-        />
-        <input
-          type="date"
-          value={creationDateFilter}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreationDateFilter(e.target.value)}
-          className={filterInputClass}
-          placeholder="Creation Date"
-          style={{ colorScheme: filterColorScheme }}
-        />
-        <div className="flex gap-2">
+        <div ref={dateRangeRef} className="relative min-w-[190px]">
+          <button
+            type="button"
+            onClick={() => setDateRangeOpen((prev) => !prev)}
+            className={`${dropdownButtonClass} flex w-full items-center justify-between gap-3 text-left`}
+            aria-haspopup="dialog"
+            aria-expanded={isDateRangeOpen}
+          >
+            <span className={dueDateFilter ? '' : 'opacity-80'}>{dateRangeLabel}</span>
+            <ChevronIcon open={isDateRangeOpen} className="h-4 w-4 shrink-0 opacity-80 transition" />
+          </button>
+          {isDateRangeOpen && (
+            <div className={`absolute left-0 top-full z-50 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border p-3 ${dropdownMenuClass}`}>
+              <div className="mb-2 grid grid-cols-4 gap-2">
+                {([
+                  { key: '7d', label: '7D' },
+                  { key: '30d', label: '30D' },
+                  { key: 'mtd', label: 'MTD' },
+                  { key: 'ytd', label: 'YTD' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => applyDatePreset(option.key)}
+                    className={[
+                      'rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition',
+                      activeDatePreset === option.key
+                        ? 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
+                        : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">From</label>
+                <input
+                  type="date"
+                  value={dateRangeTokens.start}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                    updateDateRange(event.target.value, dateRangeTokens.end)
+                  }
+                  className={filterInputClass}
+                  style={{ colorScheme: filterColorScheme }}
+                />
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">To</label>
+                <input
+                  type="date"
+                  value={dateRangeTokens.end}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                    updateDateRange(dateRangeTokens.start, event.target.value)
+                  }
+                  className={filterInputClass}
+                  style={{ colorScheme: filterColorScheme }}
+                />
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100"
+                  onClick={() => {
+                    setDueDateFilter('');
+                    setActiveDatePreset('');
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white"
+                  onClick={() => setDateRangeOpen(false)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setQuickFilter(quickFilter === 'myTasks' ? '' : 'myTasks')}
             className={getQuickFilterButtonClass(quickFilter === 'myTasks')}
@@ -863,6 +918,15 @@ const KanbanBoard: React.FC = () => {
             <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
             <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
             <span className="relative z-10">My Tasks</span>
+          </button>
+          <button
+            onClick={() => setQuickFilter(quickFilter === 'createdByMe' ? '' : 'createdByMe')}
+            className={getQuickFilterButtonClass(quickFilter === 'createdByMe')}
+          >
+            <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+            <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+            <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+            <span className="relative z-10">Task Created By Me</span>
           </button>
           <button
             onClick={() => setQuickFilter(quickFilter === 'overdue' ? '' : 'overdue')}
@@ -882,26 +946,42 @@ const KanbanBoard: React.FC = () => {
             <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
             <span className="relative z-10">Completed</span>
           </button>
-        </div>
-      </div>
 
-      <div className="flex justify-end gap-3">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            className={getQuickFilterButtonClass(true)}
+            title="Kanban View"
+            aria-current="true"
+          >
+            <span className={`pointer-events-none absolute inset-0 rounded-[10px] ${quickFilterButtonTheme.overlay} opacity-80`} />
+            <span className={`pointer-events-none absolute inset-x-2 top-1 h-px ${quickFilterButtonTheme.edgeTop}`} />
+            <span className={`pointer-events-none absolute inset-x-2 bottom-1 h-px ${quickFilterButtonTheme.edgeBottom}`} />
+            <span className="relative z-10">Kanban</span>
+          </button>
+
         <button
           type="button"
           onClick={() => scrollBoard('left')}
-          className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          className="group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)]"
           aria-label="Scroll board left"
         >
-          &lt;
+          <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
+          <span className="pointer-events-none absolute inset-x-2 top-1 z-0 h-px bg-white/35" />
+          <span className="pointer-events-none relative z-10 text-lg leading-none">{String.fromCharCode(0x2039)}</span>
         </button>
         <button
           type="button"
           onClick={() => scrollBoard('right')}
-          className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          className="group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)]"
           aria-label="Scroll board right"
         >
-          &gt;
+          <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
+          <span className="pointer-events-none absolute inset-x-2 top-1 z-0 h-px bg-white/35" />
+          <span className="pointer-events-none relative z-10 text-lg leading-none">{String.fromCharCode(0x203A)}</span>
         </button>
+        </div>
+      </div>
       </div>
 
       <div
@@ -929,16 +1009,16 @@ const KanbanBoard: React.FC = () => {
               onDrop={(e) => handleDrop(e, column.id as TaskStatus)}
               onDragOver={handleDragOver}
             >
-              <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${detail.gradient} opacity-90`} />
+              <div className="absolute inset-0 rounded-3xl opacity-90" style={stageColumnStyle(column.id as TaskStatus)} />
               <div className="relative flex flex-col gap-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="flex items-center gap-2 font-semibold text-white">
+                  <h3 className={`flex items-center gap-2 font-semibold ${boardTextClass}`}>
                     <Icon className="h-5 w-5" />
                     <Tooltip text={String(column.id)} triggerClassName="inline-flex items-center">
                       <span>{detail.label}</span>
                     </Tooltip>
                   </h3>
-                  <span className="text-xs text-white/60">{tasksInColumn.length}</span>
+                  <span className={`text-xs ${boardMutedTextClass}`}>{tasksInColumn.length}</span>
                 </div>
 
                 <div className="space-y-4">
@@ -960,7 +1040,7 @@ const KanbanBoard: React.FC = () => {
                     );
                   })}
                   {tasksInColumn.length === 0 && (
-                    <div className="text-xs text-white/60 text-center py-6 border border-dashed border-white/20 rounded-2xl">
+                    <div className={`text-xs text-center py-6 border border-dashed rounded-2xl ${isLight ? 'border-slate-300 text-black/60' : 'border-white/20 text-white/60'}`}>
                       Drop quests here
                     </div>
                   )}
@@ -973,7 +1053,7 @@ const KanbanBoard: React.FC = () => {
         <div className="w-72 flex-shrink-0">
           <button
             onClick={() => {}}
-            className="group flex h-full w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border-color/70 bg-surface/40 p-8 text-sm font-semibold text-text-secondary transition-all duration-300 hover:border-primary hover:bg-primary/5 hover:text-primary"
+            className={`group flex h-full w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border-color/70 bg-surface/40 p-8 text-sm font-semibold transition-all duration-300 hover:border-primary hover:bg-primary/5 ${boardMutedTextClass}`}
           >
             <div className="grid h-12 w-12 place-items-center rounded-xl border-2 border-dashed border-current bg-white/5 group-hover:scale-110">
               <PlusIcon className="h-6 w-6" />
@@ -983,7 +1063,7 @@ const KanbanBoard: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
+      <div className={`rounded-3xl border p-5 ${isLight ? 'border-slate-200 bg-white' : 'border-white/10 bg-black/40'}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
@@ -992,8 +1072,8 @@ const KanbanBoard: React.FC = () => {
               disabled={!canGoPrev}
               className={`rounded border px-4 py-2 text-sm font-semibold transition ${
                 canGoPrev
-                  ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
-                  : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed'
+                  ? (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
+                  : (isLight ? 'border-slate-200 bg-slate-100 text-black/50 cursor-not-allowed' : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed')
               }`}
             >
               Prev page
@@ -1004,13 +1084,13 @@ const KanbanBoard: React.FC = () => {
               disabled={!canGoNext}
               className={`rounded border px-4 py-2 text-sm font-semibold transition ${
                 canGoNext
-                  ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
-                  : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed'
+                  ? (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
+                  : (isLight ? 'border-slate-200 bg-slate-100 text-black/50 cursor-not-allowed' : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed')
               }`}
             >
               Next page
             </button>
-            <span className="text-xs text-white/70">Page {pageIndex + 1} of {totalPages}</span>
+            <span className={`text-xs ${boardMutedTextClass}`}>Page {pageIndex + 1} of {totalPages}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1022,8 +1102,8 @@ const KanbanBoard: React.FC = () => {
               }}
               className={`rounded border px-3 py-2 text-sm font-semibold transition ${
                 pageSize === 20
-                  ? 'border-cyan-300/70 bg-cyan-500/10 text-cyan-100'
-                  : 'border-white/20 bg-white/5 text-white hover:bg-white/10'
+                  ? (isLight ? 'border-cyan-400/70 bg-cyan-50 text-black' : 'border-cyan-300/70 bg-cyan-500/10 text-white')
+                  : (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
               }`}
             >
               20 per page
@@ -1036,8 +1116,8 @@ const KanbanBoard: React.FC = () => {
               }}
               className={`rounded border px-3 py-2 text-sm font-semibold transition ${
                 pageSize === 100
-                  ? 'border-cyan-300/70 bg-cyan-500/10 text-cyan-100'
-                  : 'border-white/20 bg-white/5 text-white hover:bg-white/10'
+                  ? (isLight ? 'border-cyan-400/70 bg-cyan-50 text-black' : 'border-cyan-300/70 bg-cyan-500/10 text-white')
+                  : (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
               }`}
             >
               100 per page
@@ -1063,4 +1143,5 @@ const KanbanBoard: React.FC = () => {
 };
 
 export default KanbanBoard;
+
 

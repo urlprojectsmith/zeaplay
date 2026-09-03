@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   postgres:
@@ -30,17 +30,6 @@ services:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 6211"
 
-  reporting-worker:
-    build: ./backend
-    environment:
-      VEE_DATABASE_URL: postgresql://vee_user:vee_password@postgres:5432/vee_task_manager
-      VEE_ENVIRONMENT: production
-      REPORTING_WORKER_INTERVAL: 60
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: sh -c "python -m app.reporting.worker"
-
   frontend:
     build:
       context: ./frontend
@@ -55,3 +44,4 @@ services:
 
 volumes:
   postgres_data:
+

@@ -3,7 +3,7 @@ import React, { Suspense, useState, useEffect, useCallback, useMemo, useRef } fr
 import { useSearchParams } from 'react-router-dom';
 import { useAuth, useTheme } from '../hooks/useAuth';
 import api from '../services/mockApi';
-import { Achievement, BadgeProgress, User, Reward, RewardStatus, Task, CUSTOM_STATUS_NAMES, Role } from '../types';
+import { Achievement, BadgeProgress, User, Reward, RewardStatus, Task, CUSTOM_STATUS_NAMES, Role, UserStatus } from '../types';
 import { formatDate } from '../utils';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { LEVELS_CONFIG_UPDATED_EVENT, LevelConfig, getLevelProgress, loadLevelsConfig } from '../utils/levelsConfigStorage';
@@ -306,6 +306,8 @@ type LeaderboardTab = {
 
 const isLeadershipRole = (role?: Role | null) =>
     role === Role.ADMIN || role === Role.OWNER || role === Role.MANAGER;
+
+const isLeaderboardEligibleUser = (user: User) => user.status !== UserStatus.DEACTIVATED;
 
 const resolveStreakLabel = (user: User): string => {
     const activity = user.tasksCompleted + user.tasksCreated;
@@ -1774,23 +1776,27 @@ const Achievements: React.FC = () => {
         [users],
     );
     const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+    const leaderboardEligibleUsers = useMemo(
+        () => users.filter(isLeaderboardEligibleUser),
+        [users],
+    );
 
     const leaderboardPointsByUserId = useMemo(() => {
         const map = new Map<string, number>();
-        users.forEach((user) => {
+        leaderboardEligibleUsers.forEach((user) => {
             const basePoints = Number.isFinite(user.points) ? user.points : resolveFallbackPoints(user);
             map.set(user.id, basePoints);
         });
         return map;
-    }, [users]);
+    }, [leaderboardEligibleUsers]);
 
     const leaderboardUsers = useMemo(() => {
-        const updated = users.map((user) => ({
+        const updated = leaderboardEligibleUsers.map((user) => ({
             ...user,
             points: leaderboardPointsByUserId.get(user.id) ?? 0,
         }));
         return updated.slice().sort((a, b) => b.points - a.points);
-    }, [leaderboardPointsByUserId, users]);
+    }, [leaderboardEligibleUsers, leaderboardPointsByUserId]);
 
     const leaderboardTabUsers = useMemo(() => {
         if (activeLeaderboardTab === 'leadership') {
@@ -1812,7 +1818,7 @@ const Achievements: React.FC = () => {
             return new Map<string, Achievement>();
         }
         const map = new Map<string, Achievement>();
-        users.forEach((user) => {
+        leaderboardEligibleUsers.forEach((user) => {
             const badgeId =
                 currentUser && user.id === currentUser.id
                     ? leaderboardBadgeId
@@ -1826,7 +1832,7 @@ const Achievements: React.FC = () => {
             }
         });
         return map;
-    }, [achievementsById, currentUser, leaderboardBadgeId, users]);
+    }, [achievementsById, currentUser, leaderboardBadgeId, leaderboardEligibleUsers]);
 
     const activeLeaderboardTabMeta = leaderboardTabs.find((tab) => tab.key === activeLeaderboardTab);
     const maxLeaderboardPoints = useMemo(() => {
@@ -1842,6 +1848,13 @@ const Achievements: React.FC = () => {
         () => leaderboardUsers.find((user) => user.id === currentUser?.id) ?? null,
         [leaderboardUsers, currentUser?.id],
     );
+    const currentGlobalRank = useMemo(() => {
+        if (!currentUser) {
+            return null;
+        }
+        const index = leaderboardUsers.findIndex((user) => user.id === currentUser.id);
+        return index >= 0 ? index + 1 : null;
+    }, [currentUser, leaderboardUsers]);
     const currentUserRankInTab = useMemo(() => {
         if (!currentUser) {
             return null;
@@ -2582,7 +2595,7 @@ const Achievements: React.FC = () => {
                             Smash quests, collect rare badges, and climb the leaderboard. Every task you conquer powers up your squad and unlocks new rewards.
                         </p>
                         <div className="mt-6 flex flex-wrap gap-4">
-                            <StatPill icon={TrophyIcon} label="Global Rank" value={`#${leaderboardUsers.findIndex((user) => user.id === currentUser.id) + 1 || '--'}`} accent={rankAccent} theme={resolvedTheme} />
+                            <StatPill icon={TrophyIcon} label="Global Rank" value={currentGlobalRank ? `#${currentGlobalRank}` : '--'} accent={rankAccent} theme={resolvedTheme} />
                             <StatPill icon={SparklesIcon} label="Badges" value={`${unlockedCount}/${achievements.length}`} accent={badgesAccent} theme={resolvedTheme} />
                             <StatPill icon={BoltIcon} label="Total XP" value={currentUserPoints.toLocaleString()} accent={xpAccent} theme={resolvedTheme} />
                             <StatPill icon={FireIcon} label="Overall XP" value={currentUserOverallXp.toLocaleString()} accent={rankAccent} theme={resolvedTheme} />

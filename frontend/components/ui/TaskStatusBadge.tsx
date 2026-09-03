@@ -24,16 +24,16 @@ const STATUS_ICONS: Record<TaskStatus, React.FC<React.SVGProps<SVGSVGElement>>> 
   [TaskStatus.GRAVEYARD]: TrashIcon,
 };
 
-const STATUS_GRADIENTS: Record<TaskStatus, string> = {
-  [TaskStatus.WAITING_FOR_REQUIREMENT]: 'from-slate-500/60 via-slate-600/60 to-slate-900/80',
-  [TaskStatus.TODO]: 'from-indigo-500/60 via-sky-500/60 to-cyan-500/80',
-  [TaskStatus.IN_PROGRESS]: 'from-purple-500/60 via-fuchsia-500/60 to-rose-500/80',
-  [TaskStatus.BLOCKED]: 'from-rose-500/60 via-red-500/60 to-orange-500/80',
-  [TaskStatus.IN_REVIEW]: 'from-emerald-500/60 via-teal-500/60 to-sky-400/80',
-  [TaskStatus.ON_HOLD]: 'from-slate-500/60 via-slate-600/60 to-slate-700/80',
-  [TaskStatus.DONE]: 'from-emerald-400/60 via-lime-400/60 to-amber-300/80',
-  [TaskStatus.FAILED]: 'from-red-500/60 via-rose-500/60 to-pink-500/80',
-  [TaskStatus.GRAVEYARD]: 'from-gray-500/60 via-gray-600/60 to-gray-900/80',
+const STATUS_STAGE_TOKEN: Record<TaskStatus, string> = {
+  [TaskStatus.WAITING_FOR_REQUIREMENT]: '--color-stage-battle',
+  [TaskStatus.TODO]: '--color-stage-case',
+  [TaskStatus.IN_PROGRESS]: '--color-stage-progress',
+  [TaskStatus.BLOCKED]: '--color-stage-boss',
+  [TaskStatus.IN_REVIEW]: '--color-stage-tactical',
+  [TaskStatus.ON_HOLD]: '--color-stage-hold',
+  [TaskStatus.DONE]: '--color-stage-conquered',
+  [TaskStatus.FAILED]: '--color-stage-fallen',
+  [TaskStatus.GRAVEYARD]: '--color-stage-graveyard',
 };
 
 interface TaskStatusBadgeProps {
@@ -43,28 +43,24 @@ interface TaskStatusBadgeProps {
 
 const TaskStatusBadge: React.FC<TaskStatusBadgeProps> = ({ status, onClick }) => {
   const Icon = STATUS_ICONS[status] || STATUS_ICONS[TaskStatus.TODO];
-  const gradient = STATUS_GRADIENTS[status] || STATUS_GRADIENTS[TaskStatus.TODO];
   const name = CUSTOM_STATUS_NAMES[status]?.name || status || 'Unknown';
   const tooltip = CUSTOM_STATUS_NAMES[status]?.tooltip || '';
+  const stageToken = STATUS_STAGE_TOKEN[status] ?? '--color-stage-case';
 
-  const baseClass = `
-    inline-flex items-center gap-2 rounded-full border border-white/30
-    bg-gradient-to-r ${gradient} px-3 py-1 text-sm font-semibold text-white
-    shadow-[0_0_8px_rgba(255,255,255,0.6)]
-    transition-all duration-300 ease-in-out
-    animate-pulse
-  `;
-  const interactiveClass = `
-    hover:scale-110 hover:shadow-[0_0_15px_rgba(255,255,255,0.9)] hover:-translate-y-1
-    active:scale-95 active:shadow-[0_0_5px_rgba(255,255,255,0.4)]
-    focus:outline-none focus:ring-2 focus:ring-white/80
-    cursor-pointer
-  `;
+  const style: React.CSSProperties = {
+    borderColor: `color-mix(in srgb, var(${stageToken}) 55%, var(--color-border-color) 45%)`,
+    background: `linear-gradient(120deg, color-mix(in srgb, var(${stageToken}) 24%, var(--color-surface) 76%), color-mix(in srgb, var(${stageToken}) 16%, var(--color-bg-secondary) 84%))`,
+    boxShadow: `0 10px 24px color-mix(in srgb, var(${stageToken}) 24%, transparent)`,
+    color: 'var(--color-text-primary)',
+  };
+
+  const baseClass = 'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition-all duration-200 ease-out';
+  const interactiveClass = 'hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary/60 cursor-pointer';
 
   if (!onClick) {
     return (
-      <span title={tooltip} className={`${baseClass}`}>
-        <Icon className="h-5 w-5 animate-spin" />
+      <span title={tooltip} className={baseClass} style={style}>
+        <Icon className="h-4 w-4" style={{ color: `var(${stageToken})` }} />
         {name}
       </span>
     );
@@ -75,9 +71,10 @@ const TaskStatusBadge: React.FC<TaskStatusBadgeProps> = ({ status, onClick }) =>
       onClick={onClick}
       title={tooltip}
       className={`${baseClass} ${interactiveClass}`}
+      style={style}
       type="button"
     >
-      <Icon className="h-5 w-5 animate-spin" />
+      <Icon className="h-4 w-4" style={{ color: `var(${stageToken})` }} />
       {name}
     </button>
   );
