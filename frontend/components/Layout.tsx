@@ -143,8 +143,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/tasks', label: 'Tasks', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241423/task-actions_urhfeq.png' },
       { to: '/kanban', label: 'Kanban', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241422/kanban_ysnojm.png' },
       { to: '/tickets', label: 'Tickets', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770343495/support-ticket_fku5gp.png' },
-      { to: '/inbox', label: 'Inbox', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770623535/inbox_yds6wp.png' },
-      { to: '/chat', label: 'Chat', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770623577/chat_xsolsd.png' },
       { to: '/calendar', label: 'Calendar', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241422/calendar_xbhksz.png' },
       { to: '/media', label: 'Media', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770241422/Media_Library_em2ky8.png' },
       { to: '/tool-library', label: 'Tools', icon: 'https://res.cloudinary.com/dqhcbck76/image/upload/v1770623739/open-box_ljkslo.png' },
@@ -172,7 +170,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [user]);
 
   const bottomBarLinks = useMemo(
-    () => mobileLinks.filter((link) => ['/dashboard', '/tasks', '/kanban', '/inbox', '/chat'].includes(String(link.to))),
+    () => mobileLinks.filter((link) => ['/dashboard', '/tasks', '/kanban'].includes(String(link.to))),
     [mobileLinks],
   );
 
@@ -234,20 +232,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
         <main
           key={refreshKey}
-          className="flex-1 overflow-x-hidden overflow-y-auto bg-background pt-4 pr-4 pb-24 pl-4 sm:pt-6 sm:pr-6 sm:pb-24 sm:pl-6 lg:p-6"
-          style={theme === 'colorful' ? {
-            background: 'linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57, #ff9ff3, #54a0ff, #5f27cd)',
-            backgroundSize: '400% 400%',
-            animation: 'colorShift 10s ease infinite'
-          } : theme === 'dark' ? {
-            background: 'linear-gradient(45deg, #1a1a2e, #16213e, #0f3460, #533483)',
-            backgroundSize: '400% 400%',
-            animation: 'darkShift 15s ease infinite'
-          } : {
-            background: '#ffffff',
-            backgroundSize: 'auto',
-            animation: 'none'
-          }}
+          className={`layout-main-surface flex-1 overflow-x-hidden overflow-y-auto bg-background pt-4 pr-4 pb-24 pl-4 sm:pt-6 sm:pr-6 sm:pb-24 sm:pl-6 lg:p-6 ${theme === 'colorful' ? 'layout-main-colorful' : ''}`}
         >
         <style>
           {`

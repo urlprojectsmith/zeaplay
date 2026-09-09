@@ -18,7 +18,6 @@ MODULES: list[schemas.NotificationModule] = [
     "users",
     "departments",
     "comments",
-    "chat",
 ]
 
 

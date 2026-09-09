@@ -62,14 +62,14 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-            <div className="bg-gray p-6 rounded-lg shadow-lg w-full max-w-md border border-gray-200">
-                <h2 className="text-2xl font-bold mb-2 text-white-900">Reset Password</h2>
-                <p className="text-white-600 mb-6">for <span className="font-semibold text-black-900">{user.name}</span></p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4">
+            <div className="w-full max-w-md rounded-lg border border-white/20 bg-slate-950 p-6 shadow-2xl">
+                <h2 className="mb-2 text-2xl font-bold text-white">Reset Password</h2>
+                <p className="mb-6 text-slate-200">for <span className="font-semibold text-white">{user.name}</span></p>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label htmlFor="new-password" className="block text-sm font-medium text-white-700">New Password</label>
+                        <label htmlFor="new-password" className="block text-sm font-medium text-slate-100">New Password</label>
                         <div className="relative mt-1">
                             <input 
                                 type={showNewPassword ? "text" : "password"}
@@ -78,12 +78,12 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
                                 onChange={e => setNewPassword(e.target.value)}
                                 required 
                                 minLength={8}
-                                className="block w-full bg-black-500 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 pr-10" 
+                                className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-slate-950 shadow-sm caret-blue-600 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowNewPassword(!showNewPassword)}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-800"
                                 aria-label={showNewPassword ? "Hide new password" : "Show new password"}
                             >
                                 {showNewPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
@@ -91,7 +91,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="confirm-password" className="block text-sm font-medium text-white-700">Confirm New Password</label>
+                        <label htmlFor="confirm-password" className="block text-sm font-medium text-slate-100">Confirm New Password</label>
                         <div className="relative mt-1">
                             <input 
                                 type={showConfirmPassword ? "text" : "password"}
@@ -99,12 +99,12 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
                                 value={confirmPassword}
                                 onChange={e => setConfirmPassword(e.target.value)}
                                 required
-                                className="block w-full bg-black-600 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 pr-10" 
+                                className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-slate-950 shadow-sm caret-blue-600 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                             />
                              <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-800"
                                 aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
                             >
                                 {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
@@ -112,14 +112,14 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
                         </div>
                     </div>
 
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
-                    {success && <p className="text-green-500 text-sm">{success}</p>}
+                    {error && <p className="text-sm font-medium text-red-300">{error}</p>}
+                    {success && <p className="text-sm font-medium text-emerald-300">{success}</p>}
 
-                    <div className="flex justify-end space-x-4 pt-4">
-                        <button type="button" onClick={handleClose} className="py-2 px-4 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                    <div className="flex justify-end gap-4 pt-4">
+                        <button type="button" onClick={handleClose} className="rounded-md bg-slate-200 px-4 py-2 text-slate-800 transition-colors hover:bg-white">
                             Cancel
                         </button>
-                        <button type="submit" disabled={isSubmitting || !!success} className="py-2 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-md hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition-colors shadow-sm">
+                        <button type="submit" disabled={isSubmitting || !!success} className="rounded-md bg-blue-600 px-4 py-2 text-white shadow-sm transition-colors hover:bg-blue-500 disabled:opacity-50">
                             {isSubmitting ? 'Resetting...' : 'Reset Password'}
                         </button>
                     </div>

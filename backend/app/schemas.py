@@ -4,13 +4,15 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import (
     AvatarStorageTypeEnum,
     BadgeProgressStatusEnum,
     BadgeStateEnum,
     ChatConversationTypeEnum,
+    ChatMemberRoleEnum,
+    ChatMessageTypeEnum,
     MediaCategoryEnum,
     NotificationEntityTypeEnum,
     NotificationTypeEnum,
@@ -1544,38 +1546,155 @@ class PipelineMembershipUpdate(BaseModel):
 class ChatMemberRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: str
     conversation_id: str
     user_id: str
     name: str
-    role: RoleEnum
-    is_admin: bool
+    email: str
+    app_role: RoleEnum
+    role: ChatMemberRoleEnum
     joined_at: datetime
-    last_read_at: datetime
+    last_read_message_id: Optional[str] = None
+    last_read_at: Optional[datetime] = None
+    is_muted: bool = False
+    is_pinned: bool = False
 
 
 class ChatConversationBase(BaseModel):
     name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
+    avatar_url: Optional[str] = Field(default=None, max_length=1024)
+    project_id: Optional[str] = Field(default=None, max_length=36)
+    team_id: Optional[str] = Field(default=None, max_length=255)
     is_private: bool = False
+
+
+class ChatConversationCreate(ChatConversationBase):
+    type: ChatConversationTypeEnum
+    member_ids: List[str] = Field(default_factory=list)
 
 
 class ChatSpaceCreate(ChatConversationBase):
     member_ids: List[str] = Field(default_factory=list)
 
 
+class ChatGroupCreate(ChatConversationBase):
+    name: str = Field(min_length=1, max_length=255)
+    member_ids: List[str] = Field(min_length=1)
+
+
 class ChatDirectCreate(BaseModel):
-    target_user_id: str = Field(min_length=1)
+    user_id: Optional[str] = Field(default=None, min_length=1)
+    target_user_id: Optional[str] = Field(default=None, min_length=1)
+
+    @field_validator("target_user_id")
+    @classmethod
+    def target_or_user_id(cls, value: Optional[str], info):
+        values = info.data
+        if not value and not values.get("user_id"):
+            raise ValueError("user_id is required")
+        return value
+
+
+class ChatMemberAdd(BaseModel):
+    user_ids: List[str] = Field(min_length=1)
+    role: ChatMemberRoleEnum = ChatMemberRoleEnum.MEMBER
+
+
+class ChatMemberUpdate(BaseModel):
+    role: Optional[ChatMemberRoleEnum] = None
+    is_muted: Optional[bool] = None
+    is_pinned: Optional[bool] = None
+    last_read_message_id: Optional[str] = None
+
+
+class ChatConversationUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    avatar_url: Optional[str] = Field(default=None, max_length=1024)
+    is_private: Optional[bool] = None
+    is_archived: Optional[bool] = None
 
 
 class ChatMessageBase(BaseModel):
-    content: str = Field(min_length=1, max_length=5000)
+    content: str = Field(default="", max_length=5000)
 
 
 class ChatMessageCreate(ChatMessageBase):
-    pass
+    message_type: ChatMessageTypeEnum = ChatMessageTypeEnum.TEXT
+    client_id: Optional[str] = Field(default=None, max_length=128)
+    reply_to_message_id: Optional[str] = None
+    attachments: List["ChatAttachmentCreate"] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def content_or_attachment(self):
+        if not self.content.strip() and not self.attachments:
+            raise ValueError("Message content or attachment is required")
+        return self
 
 
-class ChatMessageRead(ChatMessageBase):
+class ChatMessageUpdate(BaseModel):
+    content: str = Field(min_length=1, max_length=5000)
+
+
+class ChatReadMarkerUpdate(BaseModel):
+    last_read_message_id: Optional[str] = None
+
+
+class ChatReactionCreate(BaseModel):
+    emoji: str = Field(min_length=1, max_length=64)
+
+    @field_validator("emoji")
+    @classmethod
+    def emoji_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("emoji is required")
+        return value
+
+
+class ChatReactionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    message_id: str
+    user_id: str
+    emoji: str
+    created_at: datetime
+
+
+class ChatAttachmentCreate(BaseModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    original_file_name: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(min_length=1, max_length=255)
+    file_size: int = Field(ge=0)
+    storage_key: str = Field(min_length=1, max_length=1024)
+    url: Optional[str] = Field(default=None, max_length=1024)
+
+    @field_validator("file_name", "original_file_name", "mime_type", "storage_key")
+    @classmethod
+    def required_text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("field is required")
+        return value
+
+
+class ChatAttachmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    message_id: str
+    file_name: str
+    original_file_name: str
+    mime_type: str
+    file_size: int
+    storage_key: str
+    url: Optional[str] = None
+    created_at: datetime
+
+
+class ChatMessageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -1583,16 +1702,38 @@ class ChatMessageRead(ChatMessageBase):
     sender_id: str
     sender_name: str
     sender_role: RoleEnum
+    message_type: ChatMessageTypeEnum
+    client_id: Optional[str] = None
+    content: str
+    reply_to_message_id: Optional[str] = None
+    edited_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    reactions: List[ChatReactionRead] = Field(default_factory=list)
+    attachments: List[ChatAttachmentRead] = Field(default_factory=list)
+    mentions: List[str] = Field(default_factory=list)
+
+
+class ChatPinnedMessageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    conversation_id: str
+    message_id: str
+    pinned_by: str
+    created_at: datetime
+    message: ChatMessageRead
 
 
 class ChatConversationRead(ChatConversationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    tenant_id: str
     type: ChatConversationTypeEnum
     created_by_id: Optional[str]
+    is_archived: bool = False
     created_at: datetime
     updated_at: datetime
     last_message_at: Optional[datetime]
@@ -1608,28 +1749,21 @@ class ChatConversationDetail(ChatConversationRead):
     messages: List[ChatMessageRead] = Field(default_factory=list)
 
 
-class ChatMarkReadRequest(BaseModel):
-    read_at: datetime
+class ChatMessagePage(BaseModel):
+    items: List[ChatMessageRead]
+    next_cursor: Optional[str] = None
+    has_more: bool = False
 
 
-class ChatRealtimeEventType(str, Enum):
-    MESSAGE_CREATED = "MESSAGE_CREATED"
-    CONVERSATION_UPDATED = "CONVERSATION_UPDATED"
-    CONVERSATION_DELETED = "CONVERSATION_DELETED"
-    TYPING = "TYPING"
-    READ_RECEIPT = "READ_RECEIPT"
+class ChatMessageSearchResult(BaseModel):
+    message: ChatMessageRead
+    conversation: ChatConversationSummary
 
 
-class ChatRealtimeEvent(BaseModel):
-    type: ChatRealtimeEventType
-    conversation_id: str
-    payload: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ChatTypingSignal(BaseModel):
-    conversation_id: str
-    is_typing: bool
-
+class ChatMessageSearchPage(BaseModel):
+    items: List[ChatMessageSearchResult]
+    next_cursor: Optional[str] = None
+    has_more: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -1703,23 +1837,6 @@ class NotificationPreferenceUpdate(BaseModel):
 
 class NotificationPreferenceBatchUpdate(BaseModel):
     preferences: List[NotificationPreferenceUpdate]
-
-
-class ApprovalInboxItem(BaseModel):
-    id: str
-    scope_type: ApprovalScopeTypeEnum
-    scope_id: str
-    status: ApprovalStatusEnum
-    order_index: Optional[int] = None
-    requested_by: str
-    approver_id: Optional[str] = None
-    comment: Optional[str] = None
-    sla_hours: int
-    created_at: datetime
-    acted_at: Optional[datetime] = None
-    sla_remaining_hours: Optional[float] = None
-    deep_link: Optional[str] = None
-    scope: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ApprovalRead(BaseModel):

@@ -14,7 +14,6 @@ const DEFAULT_FLAGS: FeatureFlag[] = [
   { key: 'page.media', label: 'Media Library Page', group: 'Pages', description: 'Show the media library.', enabled: true },
   { key: 'page.tool_library', label: 'Tool Library Page', group: 'Pages', description: 'Show the tool library.', enabled: true },
   { key: 'page.tickets', label: 'Tickets Page', group: 'Pages', description: 'Show ticket management.', enabled: true },
-  { key: 'page.inbox', label: 'Inbox Page', group: 'Pages', description: 'Show the inbox.', enabled: true },
   { key: 'page.chat', label: 'Chat Page', group: 'Pages', description: 'Show chat module.', enabled: true },
   { key: 'page.achievements', label: 'Achievements Page', group: 'Pages', description: 'Show achievements.', enabled: true },
   { key: 'page.levels', label: 'Levels Page', group: 'Pages', description: 'Show levels manager.', enabled: true },

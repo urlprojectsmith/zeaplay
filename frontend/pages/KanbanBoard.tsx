@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import type { Task, User, KanbanColumn } from '../types';
-import KanbanDocumentationModal from '../components/KanbanDocumentationModal';
 import { Role, TaskStatus, TaskPriority, CUSTOM_STATUS_NAMES } from '../types';
 import { useAuth, useSearch, useTheme } from '../hooks/useAuth';
 import api from '../services/mockApi';
 import TaskDetailModal from '../components/TaskDetailModal';
-import CreateColumnModal from '../components/CreateColumnModal';
-import EditColumnModal from '../components/EditColumnModal';
 import Tooltip from '../components/ui/Tooltip';
 import { formatDate, formatTaskStatus } from '../utils';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { augmentTasksWithPoints, summarizeTaskPoints, formatPointsValue, normalizeDepartmentKey } from '../utils/taskPoints';
-import { priorityPillStyle, stageColumnStyle } from '../utils/themeTokens';
+import { priorityPillStyle } from '../utils/themeTokens';
 import {
   PlusIcon,
-  TrashIcon,
-  PencilIcon,
   RocketLaunchIcon,
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
@@ -126,6 +121,156 @@ const statusDetails: { [K in TaskStatus]: StatusDetail } = {
   },
 };
 
+type KanbanStatusVisual = {
+  accent: string;
+  lightColumn: string;
+  darkColumn: string;
+  lightBorder: string;
+  darkBorder: string;
+  lightGlow: string;
+  darkGlow: string;
+};
+
+const kanbanStatusVisuals: Record<TaskStatus, KanbanStatusVisual> = {
+  [TaskStatus.WAITING_FOR_REQUIREMENT]: {
+    accent: '#7DD3FC',
+    lightColumn: 'linear-gradient(180deg, rgba(240, 249, 255, 0.96), rgba(224, 242, 254, 0.9))',
+    darkColumn: 'linear-gradient(180deg, rgba(15, 35, 56, 0.86), rgba(11, 18, 32, 0.92))',
+    lightBorder: 'rgba(125, 211, 252, 0.45)',
+    darkBorder: 'rgba(125, 211, 252, 0.24)',
+    lightGlow: '0 18px 42px rgba(125, 211, 252, 0.2)',
+    darkGlow: '0 18px 42px rgba(14, 165, 233, 0.15)',
+  },
+  [TaskStatus.TODO]: {
+    accent: '#93C5FD',
+    lightColumn: 'linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(224, 231, 255, 0.88))',
+    darkColumn: 'linear-gradient(180deg, rgba(30, 41, 74, 0.86), rgba(15, 23, 42, 0.92))',
+    lightBorder: 'rgba(147, 197, 253, 0.45)',
+    darkBorder: 'rgba(147, 197, 253, 0.22)',
+    lightGlow: '0 18px 42px rgba(147, 197, 253, 0.18)',
+    darkGlow: '0 18px 42px rgba(59, 130, 246, 0.13)',
+  },
+  [TaskStatus.IN_PROGRESS]: {
+    accent: '#818CF8',
+    lightColumn: 'linear-gradient(180deg, rgba(238, 242, 255, 0.96), rgba(221, 214, 254, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(49, 46, 129, 0.7), rgba(17, 24, 39, 0.94))',
+    lightBorder: 'rgba(129, 140, 248, 0.45)',
+    darkBorder: 'rgba(129, 140, 248, 0.26)',
+    lightGlow: '0 18px 42px rgba(129, 140, 248, 0.2)',
+    darkGlow: '0 18px 42px rgba(99, 102, 241, 0.17)',
+  },
+  [TaskStatus.BLOCKED]: {
+    accent: '#F472B6',
+    lightColumn: 'linear-gradient(180deg, rgba(253, 242, 248, 0.96), rgba(252, 231, 243, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(80, 28, 62, 0.76), rgba(24, 16, 32, 0.94))',
+    lightBorder: 'rgba(244, 114, 182, 0.45)',
+    darkBorder: 'rgba(244, 114, 182, 0.25)',
+    lightGlow: '0 18px 42px rgba(244, 114, 182, 0.18)',
+    darkGlow: '0 18px 42px rgba(219, 39, 119, 0.14)',
+  },
+  [TaskStatus.IN_REVIEW]: {
+    accent: '#2DD4BF',
+    lightColumn: 'linear-gradient(180deg, rgba(240, 253, 250, 0.96), rgba(204, 251, 241, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(20, 83, 75, 0.62), rgba(12, 28, 38, 0.94))',
+    lightBorder: 'rgba(45, 212, 191, 0.45)',
+    darkBorder: 'rgba(45, 212, 191, 0.24)',
+    lightGlow: '0 18px 42px rgba(45, 212, 191, 0.18)',
+    darkGlow: '0 18px 42px rgba(20, 184, 166, 0.14)',
+  },
+  [TaskStatus.ON_HOLD]: {
+    accent: '#F59E0B',
+    lightColumn: 'linear-gradient(180deg, rgba(255, 251, 235, 0.96), rgba(254, 243, 199, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(92, 58, 19, 0.62), rgba(28, 24, 18, 0.94))',
+    lightBorder: 'rgba(245, 158, 11, 0.43)',
+    darkBorder: 'rgba(245, 158, 11, 0.24)',
+    lightGlow: '0 18px 42px rgba(245, 158, 11, 0.16)',
+    darkGlow: '0 18px 42px rgba(217, 119, 6, 0.13)',
+  },
+  [TaskStatus.DONE]: {
+    accent: '#22C55E',
+    lightColumn: 'linear-gradient(180deg, rgba(236, 253, 245, 0.96), rgba(204, 251, 241, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(20, 83, 45, 0.58), rgba(11, 30, 35, 0.94))',
+    lightBorder: 'rgba(34, 197, 94, 0.43)',
+    darkBorder: 'rgba(34, 197, 94, 0.24)',
+    lightGlow: '0 18px 42px rgba(34, 197, 94, 0.16)',
+    darkGlow: '0 18px 42px rgba(20, 184, 166, 0.13)',
+  },
+  [TaskStatus.FAILED]: {
+    accent: '#F43F5E',
+    lightColumn: 'linear-gradient(180deg, rgba(255, 241, 242, 0.96), rgba(255, 228, 230, 0.86))',
+    darkColumn: 'linear-gradient(180deg, rgba(88, 28, 43, 0.72), rgba(30, 18, 30, 0.94))',
+    lightBorder: 'rgba(244, 63, 94, 0.43)',
+    darkBorder: 'rgba(244, 63, 94, 0.24)',
+    lightGlow: '0 18px 42px rgba(244, 63, 94, 0.16)',
+    darkGlow: '0 18px 42px rgba(225, 29, 72, 0.13)',
+  },
+  [TaskStatus.GRAVEYARD]: {
+    accent: '#64748B',
+    lightColumn: 'linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.9))',
+    darkColumn: 'linear-gradient(180deg, rgba(51, 65, 85, 0.6), rgba(15, 23, 42, 0.94))',
+    lightBorder: 'rgba(100, 116, 139, 0.35)',
+    darkBorder: 'rgba(148, 163, 184, 0.18)',
+    lightGlow: '0 18px 42px rgba(100, 116, 139, 0.12)',
+    darkGlow: '0 18px 42px rgba(15, 23, 42, 0.34)',
+  },
+};
+
+const getKanbanStatusVisual = (status: TaskStatus) =>
+  kanbanStatusVisuals[status] ?? kanbanStatusVisuals[TaskStatus.TODO];
+
+const getKanbanColumnStyle = (status: TaskStatus, mode: ResolvedTheme): React.CSSProperties => {
+  const visual = getKanbanStatusVisual(status);
+  const isLight = mode === 'light';
+  const isColorful = mode === 'colorful';
+  if (isColorful) {
+    return {
+      background: `linear-gradient(180deg, color-mix(in srgb, ${visual.accent} 16%, rgba(255,255,255,0.94) 84%), rgba(255,255,255,0.76))`,
+      borderColor: visual.lightBorder,
+      boxShadow: `0 18px 42px color-mix(in srgb, ${visual.accent} 18%, transparent)`,
+    };
+  }
+  return {
+    background: isLight ? visual.lightColumn : visual.darkColumn,
+    borderColor: isLight ? visual.lightBorder : visual.darkBorder,
+    boxShadow: isLight ? visual.lightGlow : visual.darkGlow,
+  };
+};
+
+const priorityVisuals: Record<TaskPriority, { border: string; background: string; color: string }> = {
+  [TaskPriority.LOW]: {
+    border: 'rgba(45, 212, 191, 0.56)',
+    background: 'rgba(20, 184, 166, 0.14)',
+    color: '#0F766E',
+  },
+  [TaskPriority.MEDIUM]: {
+    border: 'rgba(245, 158, 11, 0.58)',
+    background: 'rgba(245, 158, 11, 0.14)',
+    color: '#92400E',
+  },
+  [TaskPriority.HIGH]: {
+    border: 'rgba(249, 115, 22, 0.58)',
+    background: 'rgba(249, 115, 22, 0.14)',
+    color: '#C2410C',
+  },
+  [TaskPriority.URGENT]: {
+    border: 'rgba(244, 63, 94, 0.58)',
+    background: 'rgba(244, 63, 94, 0.14)',
+    color: '#BE123C',
+  },
+};
+
+const getPriorityBadgeStyle = (priority: TaskPriority, mode: ResolvedTheme): React.CSSProperties => {
+  if (mode !== 'light' && mode !== 'colorful') {
+    return priorityPillStyle(priority);
+  }
+  const visual = priorityVisuals[priority] ?? priorityVisuals[TaskPriority.MEDIUM];
+  return {
+    borderColor: visual.border,
+    background: visual.background,
+    color: visual.color,
+  };
+};
+
 const overdueExcludedStatuses = new Set<TaskStatus>([
   TaskStatus.DONE,
   TaskStatus.FAILED,
@@ -183,11 +328,16 @@ const toIsoDate = (value: Date): string => {
 
 const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, onClick, onEdit, theme, user }) => {
   const isLight = theme === 'light';
-  const cardSurface = isLight
-    ? 'border-slate-200 bg-white shadow-sm'
-    : 'border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(15,23,42,0.45)]';
-  const cardTextPrimaryClass = isLight ? 'text-black' : 'text-white';
-  const cardTextMutedClass = isLight ? 'text-black/75' : 'text-white/75';
+  const isBright = theme === 'light' || theme === 'colorful';
+  const statusVisual = getKanbanStatusVisual(task.status);
+  const cardSurface = isBright
+    ? 'border-slate-200/80 bg-white/90 shadow-[0_8px_24px_rgba(15,23,42,0.08)]'
+    : 'border-white/10 bg-[rgba(20,28,45,0.78)] shadow-[0_10px_28px_rgba(0,0,0,0.28)]';
+  const cardTextPrimaryClass = isBright ? 'text-slate-950' : 'text-white';
+  const cardTextMutedClass = isBright ? 'text-slate-600' : 'text-slate-200/80';
+  const buttonClass = isBright
+    ? 'rounded-full border bg-white/76 px-3 py-1 text-sm font-semibold text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:bg-white'
+    : 'rounded-full border bg-white/5 px-3 py-1 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10';
 
   const assigneeNames = assignees.length > 0 ? assignees.map((a: any) => a.name).join(', ') : 'Unassigned';
   const pointsSummary = task.pointsBreakdown ? summarizeTaskPoints(task.pointsBreakdown) : null;
@@ -199,11 +349,16 @@ const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, 
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={() => onClick(task.id)}
-      className={`rounded-2xl border p-4 transition hover:-translate-y-2 hover:shadow-xl ${cardSurface}`}
+      className={`group relative overflow-hidden rounded-2xl border p-4 transition duration-200 hover:-translate-y-1 hover:shadow-xl ${cardSurface}`}
+      style={{ borderColor: isBright ? statusVisual.lightBorder : statusVisual.darkBorder }}
     >
+      <span
+        className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full"
+        style={{ backgroundColor: statusVisual.accent }}
+      />
       <div className="flex justify-between items-start">
         <p className={`min-h-[4.5rem] font-semibold text-sm line-clamp-3 ${cardTextPrimaryClass}`}>{task.title}</p>
-        <span className="rounded-full border px-3 py-1 text-xs font-semibold" style={priorityPillStyle(task.priority)}>
+        <span className="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold" style={getPriorityBadgeStyle(task.priority, theme)}>
           {formatPriority(task.priority)}
         </span>
       </div>
@@ -227,14 +382,16 @@ const KanbanTaskCard: React.FC<any> = ({ task, assignees, creator, onDragStart, 
       <div className="mt-3 flex gap-2">
         <button
           onClick={() => onClick(task.id)}
-          className={`flex-1 rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm hover:bg-blue-500/20 ${cardTextPrimaryClass}`}
+          className={`flex-1 ${buttonClass}`}
+          style={{ borderColor: isBright ? 'rgba(79, 124, 255, 0.28)' : 'rgba(125, 211, 252, 0.26)' }}
         >
           View
         </button>
         {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
           <button
             onClick={() => onEdit(task.id)}
-            className={`flex-1 rounded-full border border-amber-400 bg-amber-500/10 px-3 py-1 text-sm hover:bg-amber-500/20 ${cardTextPrimaryClass}`}
+            className={`flex-1 ${buttonClass}`}
+            style={{ borderColor: isBright ? 'rgba(245, 158, 11, 0.34)' : 'rgba(245, 158, 11, 0.32)' }}
           >
             Edit
           </button>
@@ -347,9 +504,10 @@ const KanbanBoard: React.FC = () => {
   const resolvedTheme = useResolvedTheme(theme as ThemeMode);
   const isColorful = resolvedTheme === 'colorful';
   const isLight = resolvedTheme === 'light';
-  const boardTextClass = isLight ? 'text-black' : 'text-white';
-  const boardMutedTextClass = isLight ? 'text-black/70' : 'text-white/70';
-  const boardTextColorHex = isLight ? '#000000' : '#FFFFFF';
+  const isBrightMode = isLight || isColorful;
+  const boardTextClass = isBrightMode ? 'text-slate-950' : 'text-white';
+  const boardMutedTextClass = isBrightMode ? 'text-slate-600' : 'text-slate-200/75';
+  const boardTextColorHex = isBrightMode ? '#0F172A' : '#FFFFFF';
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dateRangeRef = useRef<HTMLDivElement | null>(null);
   const boardDragState = useRef<{ isDragging: boolean; startX: number; scrollLeft: number }>({
@@ -652,24 +810,24 @@ const KanbanBoard: React.FC = () => {
   const quickFilterButtonTheme = isLight
     ? {
         active:
-          'border-sky-400/90 text-slate-900 bg-gradient-to-b from-sky-200 via-sky-300 to-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_0_16px_rgba(56,189,248,0.45)] ring-1 ring-sky-300/70 focus-visible:ring-sky-300/70',
+          'border-indigo-300/90 text-white bg-gradient-to-b from-sky-400 via-indigo-500 to-violet-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_12px_24px_rgba(79,70,229,0.28),0_0_22px_rgba(56,189,248,0.32)] ring-1 ring-white/55 focus-visible:ring-sky-300/70',
         inactive:
-          'border-slate-300/80 text-slate-700 bg-gradient-to-b from-white via-slate-100 to-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(15,23,42,0.15)] hover:border-sky-400/70 hover:text-slate-900 focus-visible:ring-sky-300/60',
+          'border-indigo-200/80 text-slate-700 bg-gradient-to-b from-white via-[#F7FAFF] to-[#EEF6FF] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(79,124,255,0.12)] hover:border-sky-400/70 hover:text-slate-950 hover:shadow-[0_12px_24px_rgba(79,124,255,0.18)] focus-visible:ring-sky-300/60',
         overlay:
-          'bg-[linear-gradient(135deg,rgba(255,255,255,0.7),transparent_45%,rgba(148,163,184,0.35))]',
+          'bg-[linear-gradient(135deg,rgba(255,255,255,0.5),transparent_48%,rgba(125,211,252,0.22))]',
         edgeTop: 'bg-white/80',
-        edgeBottom: 'bg-slate-300/70',
+        edgeBottom: 'bg-sky-200/70',
       }
     : isColorful
       ? {
           active:
-            'border-fuchsia-200/90 text-white bg-gradient-to-b from-fuchsia-300/90 via-sky-500/85 to-indigo-900/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_0_20px_rgba(217,70,239,0.6)] ring-1 ring-fuchsia-200/70 focus-visible:ring-fuchsia-300/60',
+            'border-fuchsia-300/90 text-white bg-gradient-to-b from-fuchsia-400 via-violet-500 to-sky-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.52),0_12px_24px_rgba(217,70,239,0.24),0_0_22px_rgba(56,189,248,0.26)] ring-1 ring-white/55 focus-visible:ring-fuchsia-300/60',
           inactive:
-            'border-sky-300/70 text-white/90 bg-gradient-to-b from-sky-400/45 via-indigo-700/55 to-slate-950/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(30,27,75,0.55)] hover:border-fuchsia-300/80 hover:text-white focus-visible:ring-fuchsia-300/60',
+            'border-fuchsia-200/80 text-slate-700 bg-gradient-to-b from-white via-[#fff7fb] to-[#eef6ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(217,70,239,0.1)] hover:border-fuchsia-300/80 hover:text-slate-950 focus-visible:ring-fuchsia-300/60',
           overlay:
-            'bg-[linear-gradient(135deg,rgba(216,180,254,0.45),transparent_45%,rgba(30,27,75,0.6))]',
-          edgeTop: 'bg-white/40',
-          edgeBottom: 'bg-indigo-900/60',
+            'bg-[linear-gradient(135deg,rgba(255,255,255,0.55),transparent_48%,rgba(244,114,182,0.18))]',
+          edgeTop: 'bg-white/80',
+          edgeBottom: 'bg-fuchsia-200/70',
         }
       : {
           active:
@@ -690,16 +848,16 @@ const KanbanBoard: React.FC = () => {
   ].join(' ');
   const filterControlTheme = isLight
     ? [
-        'border-slate-300/80 text-slate-800',
-        'bg-gradient-to-b from-white via-slate-100 to-slate-200',
-        'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_8px_16px_rgba(15,23,42,0.12)]',
-        'focus:border-sky-400/80 focus:ring-sky-300/60',
+        'border-indigo-200/85 text-slate-800',
+        'bg-white/95',
+        'shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(79,124,255,0.12)]',
+        'focus:border-[#4F7CFF]/80 focus:ring-[#4F7CFF]/30',
       ].join(' ')
     : isColorful
       ? [
-          'border-fuchsia-300/70 text-white',
-          'bg-gradient-to-b from-indigo-950/85 via-slate-950/90 to-black/95',
-          'shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(30,27,75,0.5)]',
+          'border-fuchsia-200/85 text-slate-800',
+          'bg-white/94',
+          'shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(217,70,239,0.1)]',
           'focus:border-fuchsia-200/80 focus:ring-fuchsia-300/60',
         ].join(' ')
       : [
@@ -714,9 +872,9 @@ const KanbanBoard: React.FC = () => {
     'kanban-filter-select font-semibold uppercase tracking-[0.22em]',
   ].join(' ');
   const filterPlaceholderClass = isLight
-    ? 'placeholder:text-slate-700'
+    ? 'placeholder:text-slate-500'
     : isColorful
-      ? 'placeholder:text-white'
+      ? 'placeholder:text-slate-500'
       : 'placeholder:text-sky-100';
   const filterInputClass = [
     filterControlBase,
@@ -726,21 +884,62 @@ const KanbanBoard: React.FC = () => {
     filterPlaceholderClass,
   ].join(' ');
   const dropdownMenuClass = isLight
-    ? 'border-slate-200 bg-white/95 text-slate-800 shadow-[0_20px_45px_rgba(15,23,42,0.18)]'
+    ? 'border-indigo-100 bg-white/95 text-slate-800 shadow-[0_20px_45px_rgba(79,124,255,0.18)]'
     : isColorful
-      ? 'border-fuchsia-300/40 bg-[#120a2e]/95 text-white shadow-[0_20px_45px_rgba(30,27,75,0.7)]'
+      ? 'border-fuchsia-100 bg-white/95 text-slate-800 shadow-[0_20px_45px_rgba(217,70,239,0.16)]'
       : 'border-slate-500/40 bg-[#081229]/95 text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.7)]';
   const dropdownItemClass = [
     'w-full px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] transition',
-    isLight ? 'text-slate-700 hover:bg-slate-200/80' : isColorful ? 'text-white/90 hover:bg-white/10' : 'text-slate-100 hover:bg-white/10',
+    isLight ? 'text-slate-700 hover:bg-sky-50 hover:text-slate-950' : isColorful ? 'text-slate-700 hover:bg-fuchsia-50 hover:text-slate-950' : 'text-slate-100 hover:bg-white/10',
   ].join(' ');
   const dropdownItemActiveClass = isLight
-    ? 'bg-sky-200/80 text-slate-900'
+    ? 'bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-950'
     : isColorful
-      ? 'bg-fuchsia-500/35 text-white'
+      ? 'bg-gradient-to-r from-fuchsia-100 to-sky-100 text-slate-950'
       : 'bg-sky-500/30 text-white';
   const dropdownButtonClass = filterSelectClass;
   const filterColorScheme = isLight ? 'light' : 'dark';
+  const pageShellClass = isLight
+    ? 'kanban-board-light-theme kanban-theme-text flex flex-col space-y-6 text-slate-950'
+    : isColorful
+      ? 'kanban-board-colorful-theme kanban-theme-text flex flex-col space-y-6 text-slate-950'
+    : 'kanban-board-dark-theme kanban-theme-text flex flex-col space-y-6 text-white';
+  const controlsPanelClass = isLight
+    ? 'rounded-2xl border border-indigo-200/70 bg-white/86 p-3 shadow-[0_18px_42px_rgba(79,124,255,0.14)] backdrop-blur-xl'
+    : isColorful
+      ? 'rounded-2xl border border-fuchsia-200/70 bg-white/84 p-3 shadow-[0_18px_42px_rgba(217,70,239,0.12)] backdrop-blur-xl'
+    : 'rounded-2xl border border-cyan-400/20 bg-slate-950/62 p-3 shadow-[0_22px_48px_rgba(2,6,23,0.58)] backdrop-blur-xl';
+  const scrollButtonClass = isLight
+    ? 'group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-indigo-200/80 bg-white/86 text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_18px_rgba(79,124,255,0.14)] transition duration-200 hover:border-indigo-300 hover:text-indigo-900 hover:shadow-[0_0_18px_rgba(79,124,255,0.22)]'
+    : isColorful
+      ? 'group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-fuchsia-200/80 bg-white/86 text-fuchsia-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_18px_rgba(217,70,239,0.12)] transition duration-200 hover:border-fuchsia-300 hover:text-fuchsia-900 hover:shadow-[0_0_18px_rgba(217,70,239,0.18)]'
+    : 'group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/35 bg-slate-950/76 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/70 hover:text-cyan-50 hover:shadow-[0_0_18px_rgba(34,211,238,0.34)]';
+  const paginationPanelClass = isLight
+    ? 'rounded-3xl border border-indigo-200/70 bg-white/86 p-5 shadow-[0_16px_38px_rgba(79,124,255,0.12)] backdrop-blur-xl'
+    : isColorful
+      ? 'rounded-3xl border border-fuchsia-200/70 bg-white/86 p-5 shadow-[0_16px_38px_rgba(217,70,239,0.12)] backdrop-blur-xl'
+    : 'rounded-3xl border border-cyan-400/16 bg-slate-950/60 p-5 shadow-[0_18px_42px_rgba(2,6,23,0.5)] backdrop-blur-xl';
+  const paginationButtonClass = (active: boolean) =>
+    active
+      ? isBrightMode
+        ? 'border-indigo-200/85 bg-white/86 text-slate-800 shadow-[0_8px_18px_rgba(79,124,255,0.12)] hover:border-indigo-300 hover:bg-indigo-50'
+        : 'border-cyan-300/26 bg-white/6 text-white shadow-[0_8px_18px_rgba(2,6,23,0.28)] hover:border-cyan-300/54 hover:bg-white/10'
+      : isBrightMode
+        ? 'border-slate-200 bg-slate-100/80 text-slate-400 cursor-not-allowed'
+        : 'border-white/10 bg-white/5 text-white/45 cursor-not-allowed';
+  const pageSizeButtonClass = (active: boolean) =>
+    active
+      ? isBrightMode
+        ? 'border-indigo-300/80 bg-indigo-50 text-indigo-700 shadow-[0_8px_18px_rgba(79,124,255,0.12)]'
+        : 'border-cyan-300/60 bg-cyan-500/10 text-cyan-100 shadow-[0_8px_18px_rgba(34,211,238,0.1)]'
+      : isBrightMode
+        ? 'border-indigo-200/80 bg-white/86 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+        : 'border-white/16 bg-white/5 text-white/80 hover:border-cyan-300/42 hover:bg-white/10';
+  const addStageClass = isLight
+    ? 'group flex h-full min-h-[260px] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-indigo-200/90 bg-white/58 p-8 text-sm font-semibold text-slate-600 shadow-[0_14px_32px_rgba(79,124,255,0.1)] transition-all duration-200 hover:border-indigo-300 hover:bg-white/78 hover:text-indigo-700'
+    : isColorful
+      ? 'group flex h-full min-h-[260px] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-fuchsia-200/90 bg-white/58 p-8 text-sm font-semibold text-slate-600 shadow-[0_14px_32px_rgba(217,70,239,0.1)] transition-all duration-200 hover:border-fuchsia-300 hover:bg-white/78 hover:text-fuchsia-700'
+    : 'group flex h-full min-h-[260px] w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-cyan-300/24 bg-slate-950/44 p-8 text-sm font-semibold text-slate-200/70 shadow-[0_16px_38px_rgba(2,6,23,0.45)] transition-all duration-200 hover:border-cyan-300/60 hover:bg-slate-900/70 hover:text-cyan-100';
   const statusOptions = useMemo(
     () => [
       { value: '', label: 'All Statuses' },
@@ -776,10 +975,17 @@ const KanbanBoard: React.FC = () => {
   if (loading) return <div className={`text-center p-8 ${boardMutedTextClass}`}>Loading Battle Board...</div>;
 
   return (
-    <div className={`kanban-theme-text flex flex-col space-y-6 ${boardTextClass}`} style={{ color: boardTextColorHex }}>
-      <h1 className={`text-3xl font-bold mb-4 ${boardTextClass}`}>Battle Board ⚔️</h1>
+    <div className={pageShellClass} style={{ color: boardTextColorHex }}>
+      <div className="flex flex-col gap-2">
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${isBrightMode ? 'text-fuchsia-600' : 'text-cyan-200/80'}`}>
+          Mission Control
+        </p>
+        <h1 className={`text-3xl font-bold ${boardTextClass}`}>
+          Battle Board <span className={isBrightMode ? 'text-fuchsia-500' : 'text-cyan-200'}>⚔️</span>
+        </h1>
+      </div>
 
-      <div className="space-y-3">
+      <div className={`${controlsPanelClass} space-y-3`}>
       <div className="flex flex-wrap gap-2 items-center">
         <input
           type="text"
@@ -855,8 +1061,12 @@ const KanbanBoard: React.FC = () => {
                     className={[
                       'rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition',
                       activeDatePreset === option.key
-                        ? 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
-                        : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
+                        ? isBrightMode
+                          ? 'border-indigo-300/80 bg-indigo-100 text-indigo-700'
+                          : 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
+                        : isBrightMode
+                          ? 'border-indigo-100 bg-white text-slate-600 hover:border-indigo-300 hover:text-slate-950'
+                          : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
                     ].join(' ')}
                   >
                     {option.label}
@@ -864,7 +1074,7 @@ const KanbanBoard: React.FC = () => {
                 ))}
               </div>
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">From</label>
+                <label className={isBrightMode ? 'block text-[10px] uppercase tracking-[0.2em] text-slate-500' : 'block text-[10px] uppercase tracking-[0.2em] text-white/60'}>From</label>
                 <input
                   type="date"
                   value={dateRangeTokens.start}
@@ -874,7 +1084,7 @@ const KanbanBoard: React.FC = () => {
                   className={filterInputClass}
                   style={{ colorScheme: filterColorScheme }}
                 />
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">To</label>
+                <label className={isBrightMode ? 'block text-[10px] uppercase tracking-[0.2em] text-slate-500' : 'block text-[10px] uppercase tracking-[0.2em] text-white/60'}>To</label>
                 <input
                   type="date"
                   value={dateRangeTokens.end}
@@ -888,7 +1098,7 @@ const KanbanBoard: React.FC = () => {
               <div className="mt-3 flex items-center justify-between">
                 <button
                   type="button"
-                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100"
+                  className={isBrightMode ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-600 hover:text-indigo-800' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100'}
                   onClick={() => {
                     setDueDateFilter('');
                     setActiveDatePreset('');
@@ -898,7 +1108,7 @@ const KanbanBoard: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white"
+                  className={isBrightMode ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600 hover:text-slate-950' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white'}
                   onClick={() => setDateRangeOpen(false)}
                 >
                   Done
@@ -963,7 +1173,7 @@ const KanbanBoard: React.FC = () => {
         <button
           type="button"
           onClick={() => scrollBoard('left')}
-          className="group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)]"
+          className={scrollButtonClass}
           aria-label="Scroll board left"
         >
           <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
@@ -973,7 +1183,7 @@ const KanbanBoard: React.FC = () => {
         <button
           type="button"
           onClick={() => scrollBoard('right')}
-          className="group relative z-20 inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-cyan-300/45 bg-slate-950/70 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_18px_rgba(2,6,23,0.55)] transition duration-200 hover:border-cyan-200/80 hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(34,211,238,0.45)]"
+          className={scrollButtonClass}
           aria-label="Scroll board right"
         >
           <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_50%,rgba(14,116,144,0.45))] opacity-90" />
@@ -986,7 +1196,12 @@ const KanbanBoard: React.FC = () => {
 
       <div
         ref={boardRef}
-        className="flex gap-6 overflow-x-auto overflow-y-visible pb-6 cursor-grab active:cursor-grabbing"
+        className="kanban-board-scroll flex gap-6 overflow-x-auto overflow-y-visible rounded-3xl border p-4 pb-6 cursor-grab active:cursor-grabbing"
+        style={{
+          borderColor: isBrightMode ? 'rgba(217, 70, 239, 0.24)' : 'rgba(34, 211, 238, 0.14)',
+          background: isBrightMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(2, 6, 23, 0.22)',
+          boxShadow: isBrightMode ? '0 18px 46px rgba(217, 70, 239, 0.1)' : '0 20px 52px rgba(2, 6, 23, 0.38)',
+        }}
         onMouseDown={handleBoardMouseDown}
         onMouseMove={handleBoardMouseMove}
         onMouseLeave={handleBoardMouseLeave}
@@ -1005,20 +1220,35 @@ const KanbanBoard: React.FC = () => {
           return (
             <div
               key={column.id}
-              className="w-72 flex-shrink-0 rounded-3xl border border-white/15 p-5 backdrop-blur relative"
+              className="relative w-72 flex-shrink-0 overflow-hidden rounded-3xl border p-5 backdrop-blur transition duration-200 hover:-translate-y-0.5"
               onDrop={(e) => handleDrop(e, column.id as TaskStatus)}
               onDragOver={handleDragOver}
+              style={getKanbanColumnStyle(column.id as TaskStatus, resolvedTheme)}
             >
-              <div className="absolute inset-0 rounded-3xl opacity-90" style={stageColumnStyle(column.id as TaskStatus)} />
+              <div
+                className="pointer-events-none absolute inset-x-5 top-0 h-1 rounded-b-full"
+                style={{ backgroundColor: getKanbanStatusVisual(column.id as TaskStatus).accent }}
+              />
               <div className="relative flex flex-col gap-4">
                 <div className="flex justify-between items-center">
                   <h3 className={`flex items-center gap-2 font-semibold ${boardTextClass}`}>
-                    <Icon className="h-5 w-5" />
+                    <span
+                      className="grid h-8 w-8 place-items-center rounded-xl border shadow-sm"
+                      style={{
+                        borderColor: getKanbanStatusVisual(column.id as TaskStatus).accent,
+                        color: getKanbanStatusVisual(column.id as TaskStatus).accent,
+                        background: isBrightMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(15, 23, 42, 0.58)',
+                      }}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
                     <Tooltip text={String(column.id)} triggerClassName="inline-flex items-center">
                       <span>{detail.label}</span>
                     </Tooltip>
                   </h3>
-                  <span className={`text-xs ${boardMutedTextClass}`}>{tasksInColumn.length}</span>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${boardMutedTextClass}`} style={{ borderColor: isBrightMode ? 'rgba(148, 163, 184, 0.22)' : 'rgba(255, 255, 255, 0.1)', background: isBrightMode ? 'rgba(255, 255, 255, 0.58)' : 'rgba(255, 255, 255, 0.06)' }}>
+                    {tasksInColumn.length}
+                  </span>
                 </div>
 
                 <div className="space-y-4">
@@ -1040,7 +1270,7 @@ const KanbanBoard: React.FC = () => {
                     );
                   })}
                   {tasksInColumn.length === 0 && (
-                    <div className={`text-xs text-center py-6 border border-dashed rounded-2xl ${isLight ? 'border-slate-300 text-black/60' : 'border-white/20 text-white/60'}`}>
+                    <div className={`text-xs text-center py-6 border border-dashed rounded-2xl ${isBrightMode ? 'border-indigo-200/90 bg-white/52 text-slate-500' : 'border-white/20 bg-white/5 text-white/60'}`}>
                       Drop quests here
                     </div>
                   )}
@@ -1053,7 +1283,7 @@ const KanbanBoard: React.FC = () => {
         <div className="w-72 flex-shrink-0">
           <button
             onClick={() => {}}
-            className={`group flex h-full w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border-color/70 bg-surface/40 p-8 text-sm font-semibold transition-all duration-300 hover:border-primary hover:bg-primary/5 ${boardMutedTextClass}`}
+            className={addStageClass}
           >
             <div className="grid h-12 w-12 place-items-center rounded-xl border-2 border-dashed border-current bg-white/5 group-hover:scale-110">
               <PlusIcon className="h-6 w-6" />
@@ -1063,18 +1293,14 @@ const KanbanBoard: React.FC = () => {
         </div>
       </div>
 
-      <div className={`rounded-3xl border p-5 ${isLight ? 'border-slate-200 bg-white' : 'border-white/10 bg-black/40'}`}>
+      <div className={paginationPanelClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setPageIndex((prev) => Math.max(0, prev - 1))}
               disabled={!canGoPrev}
-              className={`rounded border px-4 py-2 text-sm font-semibold transition ${
-                canGoPrev
-                  ? (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
-                  : (isLight ? 'border-slate-200 bg-slate-100 text-black/50 cursor-not-allowed' : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed')
-              }`}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${paginationButtonClass(canGoPrev)}`}
             >
               Prev page
             </button>
@@ -1082,11 +1308,7 @@ const KanbanBoard: React.FC = () => {
               type="button"
               onClick={() => setPageIndex((prev) => Math.min(totalPages - 1, prev + 1))}
               disabled={!canGoNext}
-              className={`rounded border px-4 py-2 text-sm font-semibold transition ${
-                canGoNext
-                  ? (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
-                  : (isLight ? 'border-slate-200 bg-slate-100 text-black/50 cursor-not-allowed' : 'border-white/10 bg-white/5 text-white/50 cursor-not-allowed')
-              }`}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${paginationButtonClass(canGoNext)}`}
             >
               Next page
             </button>
@@ -1100,11 +1322,7 @@ const KanbanBoard: React.FC = () => {
                 setPageSize(20);
                 setPageIndex(0);
               }}
-              className={`rounded border px-3 py-2 text-sm font-semibold transition ${
-                pageSize === 20
-                  ? (isLight ? 'border-cyan-400/70 bg-cyan-50 text-black' : 'border-cyan-300/70 bg-cyan-500/10 text-white')
-                  : (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
-              }`}
+              className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${pageSizeButtonClass(pageSize === 20)}`}
             >
               20 per page
             </button>
@@ -1114,11 +1332,7 @@ const KanbanBoard: React.FC = () => {
                 setPageSize(100);
                 setPageIndex(0);
               }}
-              className={`rounded border px-3 py-2 text-sm font-semibold transition ${
-                pageSize === 100
-                  ? (isLight ? 'border-cyan-400/70 bg-cyan-50 text-black' : 'border-cyan-300/70 bg-cyan-500/10 text-white')
-                  : (isLight ? 'border-slate-300 bg-white text-black hover:bg-slate-100' : 'border-white/20 bg-white/5 text-white hover:bg-white/10')
-              }`}
+              className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${pageSizeButtonClass(pageSize === 100)}`}
             >
               100 per page
             </button>

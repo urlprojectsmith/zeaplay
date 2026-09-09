@@ -1053,12 +1053,376 @@ select option {
   font-size: 12px;
 }
 
+:root {
+  --header-bg: linear-gradient(110deg, rgba(248, 252, 255, 0.98), rgba(231, 246, 255, 0.95), rgba(244, 239, 255, 0.94));
+  --header-border: rgba(125, 211, 252, 0.58);
+  --header-text: #0f172a;
+  --header-control-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(232, 248, 255, 0.84));
+  --header-control-border: rgba(125, 211, 252, 0.58);
+  --header-control-text: #0f172a;
+  --header-control-icon: #0369a1;
+  --header-control-hover-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(207, 250, 254, 0.88));
+  --header-control-shadow: 0 10px 22px rgba(14, 116, 144, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  --header-control-hover-shadow: 0 14px 28px rgba(14, 165, 233, 0.20), 0 0 18px rgba(34, 211, 238, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --surface-bg:
+    linear-gradient(rgba(14, 165, 233, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.035) 1px, transparent 1px),
+    radial-gradient(ellipse at 12% 0%, rgba(34, 211, 238, 0.12) 0, transparent 34%),
+    radial-gradient(ellipse at 84% 8%, rgba(139, 92, 246, 0.10) 0, transparent 34%),
+    linear-gradient(135deg, #ffffff 0%, #f5fbff 44%, #f8f7ff 100%);
+  --surface-bg-size: 32px 32px, 32px 32px, auto, auto, auto;
+  --surface-card: rgba(255, 255, 255, 0.90);
+  --surface-muted: rgba(224, 242, 254, 0.58);
+  --primary: #22d3ee;
+  --secondary: #3b82f6;
+  --accent: #8b5cf6;
+  --accent-soft: rgba(34, 211, 238, 0.18);
+  --button-primary-bg: linear-gradient(135deg, #22d3ee 0%, #3b82f6 48%, #8b5cf6 100%);
+  --button-primary-text: #ffffff;
+  --button-primary-border: rgba(103, 232, 249, 0.78);
+  --button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.44), 0 12px 28px rgba(59, 130, 246, 0.28), 0 0 24px rgba(34, 211, 238, 0.22);
+  --button-primary-hover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54), 0 16px 34px rgba(59, 130, 246, 0.34), 0 0 30px rgba(34, 211, 238, 0.32);
+  --button-secondary-bg: linear-gradient(135deg, #ffffff, #e4f8ff);
+  --button-secondary-text: #0f172a;
+  --button-secondary-border: rgba(125, 211, 252, 0.85);
+  --button-secondary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94), 0 12px 24px rgba(14, 116, 144, 0.16);
+  --button-secondary-hover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 14px 28px rgba(14, 165, 233, 0.22), 0 0 24px rgba(34, 211, 238, 0.28);
+  --mode-switch-bg: linear-gradient(135deg, #ffffff, #e0f2fe);
+  --mode-switch-border: #67e8f9;
+  --mode-switch-text: #0f172a;
+  --mode-switch-shadow: 0 12px 24px rgba(34, 211, 238, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --sidebar-bg: linear-gradient(160deg, #f8fafc, #eef9ff);
+  --focus-ring: rgba(34, 211, 238, 0.36);
+  --hover-bg: rgba(207, 250, 254, 0.62);
+  --toggle-track-bg: #cbd5e1;
+  --toggle-track-active-bg: #22d3ee;
+  --toggle-thumb-bg: #ffffff;
+  --notification-ring: rgba(34, 211, 238, 0.65);
+}
+
+.dark {
+  --header-bg: linear-gradient(to right, #0b1220, #0e1628, #05070d);
+  --header-border: rgba(56, 189, 248, 0.35);
+  --header-text: var(--color-text-primary);
+  --header-control-bg: rgba(2, 6, 23, 0.60);
+  --header-control-border: rgba(56, 189, 248, 0.25);
+  --header-control-text: var(--color-text-primary);
+  --header-control-icon: var(--color-text-accent);
+  --header-control-hover-bg: rgba(255, 255, 255, 0.10);
+  --header-control-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+  --header-control-hover-shadow: 0 0 16px rgba(56, 189, 248, 0.24);
+  --surface-bg: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460, #533483);
+  --surface-bg-size: 400% 400%;
+  --surface-card: var(--color-surface);
+  --surface-muted: rgba(15, 23, 42, 0.62);
+  --primary: #38bdf8;
+  --secondary: #8b5cf6;
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.18);
+  --button-primary-bg: linear-gradient(to bottom, #d946ef, #4f46e5, #312e81);
+  --button-primary-text: #ffffff;
+  --button-primary-border: rgba(249, 168, 212, 0.70);
+  --button-primary-shadow: inset 0 1px 0 rgba(255,255,255,0.32), 0 6px 0 rgba(49,46,129,0.6), 0 16px 30px rgba(99,102,241,0.32);
+  --button-primary-hover-shadow: inset 0 1px 0 rgba(255,255,255,0.38), 0 7px 0 rgba(49,46,129,0.62), 0 0 34px rgba(168,85,247,0.45);
+  --button-secondary-bg: linear-gradient(to bottom, #0f2a3f, #0b1f33, #08162b);
+  --button-secondary-text: #cffafe;
+  --button-secondary-border: rgba(103, 232, 249, 0.60);
+  --button-secondary-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 6px 0 rgba(6,78,99,0.45), 0 16px 30px rgba(2,132,199,0.22);
+  --button-secondary-hover-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 7px 0 rgba(6,78,99,0.5), 0 0 28px rgba(34,211,238,0.35);
+  --mode-switch-bg: rgba(2, 6, 23, 0.70);
+  --mode-switch-border: rgba(103, 232, 249, 0.40);
+  --mode-switch-text: #cffafe;
+  --mode-switch-shadow: 0 0 14px rgba(34, 211, 238, 0.35), inset 0 2px 6px rgba(255, 255, 255, 0.28), inset 0 -3px 8px rgba(0, 0, 0, 0.34);
+  --sidebar-bg: linear-gradient(160deg, rgba(8, 15, 32, 0.98), rgba(2, 6, 23, 0.98));
+  --focus-ring: rgba(103, 232, 249, 0.44);
+  --hover-bg: rgba(255, 255, 255, 0.10);
+  --toggle-track-bg: #334155;
+  --toggle-track-active-bg: rgba(251, 191, 36, 0.8);
+  --toggle-thumb-bg: #ffffff;
+  --notification-ring: rgba(251, 191, 36, 0.9);
+}
+
+.theme-colorful {
+  --header-bg: linear-gradient(105deg, #6d28d9 0%, #7c3aed 20%, #2563eb 48%, #0891b2 72%, #9333ea 100%);
+  --header-border: rgba(125, 211, 252, 0.55);
+  --header-text: #ffffff;
+  --header-control-bg: linear-gradient(135deg, rgba(30, 27, 75, 0.70), rgba(88, 28, 135, 0.58));
+  --header-control-border: rgba(125, 211, 252, 0.44);
+  --header-control-text: #f8fbff;
+  --header-control-icon: #a5f3fc;
+  --header-control-hover-bg: linear-gradient(135deg, rgba(49, 46, 129, 0.82), rgba(126, 34, 206, 0.66));
+  --header-control-shadow: 0 12px 24px rgba(49, 46, 129, 0.24), 0 0 18px rgba(34, 211, 238, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --header-control-hover-shadow: 0 15px 30px rgba(49, 46, 129, 0.32), 0 0 24px rgba(34, 211, 238, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --surface-bg:
+    radial-gradient(ellipse at 12% 0%, rgba(236,254,255,0.88) 0, transparent 34%),
+    radial-gradient(ellipse at 82% 6%, rgba(245,240,255,0.92) 0, transparent 36%),
+    linear-gradient(135deg, #f8faff 0%, #eef4ff 36%, #f5f0ff 68%, #ecfeff 100%);
+  --surface-bg-size: auto;
+  --surface-card: rgba(255, 255, 255, 0.78);
+  --surface-muted: rgba(232, 240, 255, 0.62);
+  --primary: #ec4899;
+  --secondary: #8b5cf6;
+  --accent: #06b6d4;
+  --accent-soft: rgba(236, 72, 153, 0.18);
+  --button-primary-bg: linear-gradient(110deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4);
+  --button-primary-text: #ffffff;
+  --button-primary-border: rgba(244, 114, 182, 0.76);
+  --button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48), 0 14px 28px rgba(124, 58, 237, 0.24), 0 0 28px rgba(6, 182, 212, 0.22);
+  --button-primary-hover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56), 0 18px 34px rgba(168, 85, 247, 0.28), 0 0 32px rgba(34, 211, 238, 0.30);
+  --button-secondary-bg: linear-gradient(135deg, rgba(220, 250, 255, 0.96), rgba(165, 243, 252, 0.92));
+  --button-secondary-text: #0f172a;
+  --button-secondary-border: rgba(103, 232, 249, 0.92);
+  --button-secondary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 24px rgba(14, 165, 233, 0.16), 0 0 20px rgba(34, 211, 238, 0.18);
+  --button-secondary-hover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 16px 28px rgba(14, 165, 233, 0.22), 0 0 28px rgba(34, 211, 238, 0.30);
+  --mode-switch-bg: linear-gradient(100deg, #312e81, #6d28d9, #9333ea, #2563eb);
+  --mode-switch-border: rgba(103, 232, 249, 0.72);
+  --mode-switch-text: #ffffff;
+  --mode-switch-shadow: 0 14px 28px rgba(109, 40, 217, 0.34), 0 0 22px rgba(34, 211, 238, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  --sidebar-bg: linear-gradient(160deg, #c026d3, #3b82f6 45%, #7c3aed);
+  --focus-ring: rgba(103, 232, 249, 0.46);
+  --hover-bg: rgba(255, 255, 255, 0.14);
+  --toggle-track-bg: rgba(49, 46, 129, 0.82);
+  --toggle-track-active-bg: #06b6d4;
+  --toggle-thumb-bg: #ffffff;
+  --notification-ring: rgba(34, 211, 238, 0.82);
+}
+
+.layout-main-surface {
+  background: var(--surface-bg) !important;
+  background-size: var(--surface-bg-size) !important;
+  background-attachment: fixed !important;
+}
+
+.dark .layout-main-surface {
+  animation: darkShift 15s ease infinite;
+}
+
+.theme-light .layout-main-surface,
+html:not(.dark):not(.theme-colorful) .layout-main-surface,
+.theme-colorful .layout-main-surface {
+  animation: none;
+}
+
+.zea-app-header {
+  background: var(--header-bg);
+  border-color: var(--header-border);
+  color: var(--header-text);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.16), 0 1px 0 var(--header-border);
+}
+
+.zea-app-header-dark {
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.55), 0 1px 0 rgba(56, 189, 248, 0.35);
+}
+
+.zea-app-header-colorful {
+  box-shadow: 0 14px 34px rgba(76, 29, 149, 0.30), 0 1px 0 rgba(125, 211, 252, 0.55);
+}
+
+.zea-header-video {
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+}
+
+.dark .zea-header-video {
+  opacity: 0.30;
+  mix-blend-mode: normal;
+}
+
+.theme-colorful .zea-header-video {
+  opacity: 0.20;
+  mix-blend-mode: screen;
+}
+
+.zea-header-control,
+.zea-header-icon-button,
+.zea-header-profile-button,
+.zea-header-time-pill,
+.zea-header-select,
+.zea-header-toggle,
+.mode-switch-button,
+.task-template-action,
+.task-create-action {
+  border: 1px solid var(--header-control-border);
+  background: var(--header-control-bg);
+  color: var(--header-control-text);
+  box-shadow: var(--header-control-shadow);
+  transition: transform 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+
+.zea-header-control:hover,
+.zea-header-icon-button:hover,
+.zea-header-profile-button:hover {
+  transform: translateY(-1px);
+  background: var(--header-control-hover-bg);
+  border-color: color-mix(in srgb, var(--header-control-border) 70%, #ffffff 30%);
+  color: var(--header-control-text);
+  box-shadow: var(--header-control-hover-shadow);
+}
+
+.zea-header-control:active,
+.zea-header-icon-button:active,
+.zea-header-profile-button:active,
+.mode-switch-button:active,
+.task-template-action:active,
+.task-create-action:active {
+  transform: translateY(0);
+}
+
+.zea-header-icon-button,
+.zea-header-profile-button,
+.mode-switch-button {
+  border-radius: 9999px;
+}
+
+.zea-header-control svg,
+.zea-header-icon-button svg,
+.zea-header-profile-button svg {
+  color: var(--header-control-icon);
+}
+
+.zea-header-role {
+  color: var(--header-control-text);
+}
+
+.zea-header-avatar {
+  border: 2px solid color-mix(in srgb, var(--header-control-border) 70%, #ffffff 30%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.zea-header-mobile-panel {
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  border-color: var(--header-border);
+  color: var(--header-text);
+  backdrop-filter: saturate(150%) blur(18px);
+}
+
+.zea-header-time-pill {
+  color: var(--header-control-text);
+}
+
+.zea-header-select {
+  appearance: auto;
+}
+
+.zea-header-select:focus-visible,
+.zea-header-control:focus-visible,
+.zea-header-icon-button:focus-visible,
+.zea-header-profile-button:focus-visible,
+.mode-switch-button:focus-visible,
+.task-template-action:focus-visible,
+.task-create-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.zea-toggle-track {
+  background: var(--toggle-track-bg);
+  box-shadow: inset 0 0 6px rgba(15, 23, 42, 0.26);
+}
+
+.peer:checked ~ .zea-toggle-track {
+  background: var(--toggle-track-active-bg);
+}
+
+.zea-toggle-thumb {
+  background: var(--toggle-thumb-bg);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.zea-notification-dot {
+  background: #f43f5e;
+  box-shadow: 0 0 0 2px var(--notification-ring), 0 0 10px rgba(244, 63, 94, 0.42);
+}
+
+.mode-switch-button {
+  position: relative;
+  overflow: hidden;
+  background: var(--mode-switch-bg);
+  border-color: var(--mode-switch-border);
+  color: var(--mode-switch-text);
+  box-shadow: var(--mode-switch-shadow);
+}
+
+.mode-switch-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.35) 46%, transparent 70%);
+  opacity: 0;
+  transform: translateX(-45%);
+  transition: opacity 200ms ease, transform 240ms ease;
+}
+
+.mode-switch-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--mode-switch-shadow), 0 0 24px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.mode-switch-button:hover::before {
+  opacity: 1;
+  transform: translateX(45%);
+}
+
+.mode-switch-button > * {
+  position: relative;
+  z-index: 1;
+}
+
+.task-template-action {
+  background: var(--button-secondary-bg);
+  border-color: var(--button-secondary-border);
+  color: var(--button-secondary-text);
+  box-shadow: var(--button-secondary-shadow);
+}
+
+.task-create-action {
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.task-template-action:hover,
+.task-create-action:hover {
+  transform: translateY(-1px);
+}
+
+.task-template-action:hover {
+  box-shadow: var(--button-secondary-hover-shadow);
+}
+
+.task-create-action:hover {
+  box-shadow: var(--button-primary-hover-shadow);
+}
+
+.task-template-action svg,
+.task-create-action svg {
+  color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dark .layout-main-surface,
+  .mode-switch-button::before {
+    animation: none !important;
+  }
+
+  .zea-header-control,
+  .zea-header-icon-button,
+  .zea-header-profile-button,
+  .mode-switch-button,
+  .task-template-action,
+  .task-create-action {
+    transition-duration: 1ms;
+  }
+}
+
 .theme-pill-button {
   position: relative;
   border-radius: 9999px;
-  border: inherit;
-  color: inherit;
-  background: inherit;
+  border: 1px solid var(--mode-switch-border);
+  color: var(--mode-switch-text);
+  background: var(--mode-switch-bg);
   box-shadow:
     inset 0 2px 6px rgba(255, 255, 255, 0.45),
     inset 0 -3px 8px rgba(0, 0, 0, 0.25),
@@ -1544,4 +1908,530 @@ html:not(.dark):not(.theme-colorful) .kanban-filter-input {
   height: 0;
 }
 
+/* Stable colorful mode readability layer */
+.theme-colorful {
+  --theme-bg: linear-gradient(135deg, #4ecdc4 0%, #7dd3fc 32%, #c4b5fd 58%, #f9a8d4 78%, #facc15 100%);
+  --theme-surface: rgba(255, 255, 255, 0.78);
+  --theme-border: rgba(15, 23, 42, 0.16);
+  --theme-text: #102033;
+  --theme-accent: #7c3aed;
+
+  --color-bg-primary: #65d6d4;
+  --color-bg-secondary: #8cc8ff;
+  --color-bg-tertiary: #f5b4d4;
+  --color-background: transparent;
+  --color-surface: rgba(255, 255, 255, 0.78);
+  --color-surface-secondary: rgba(255, 255, 255, 0.66);
+  --color-border-color: rgba(15, 23, 42, 0.16);
+  --color-border-strong: rgba(124, 58, 237, 0.38);
+  --color-primary: #7c3aed;
+  --color-primary-dark: #5b21b6;
+  --color-secondary: #0891b2;
+  --color-text-primary: #102033;
+  --color-text-secondary: #334155;
+  --color-text-muted: #475569;
+  --color-text-accent: #5b21b6;
+  --color-text-inverted: #ffffff;
+  --color-text-warning: #92400e;
+  --color-text-success: #166534;
+}
+
+.theme-colorful body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.58) 0, transparent 28%),
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.42) 0, transparent 24%),
+    var(--theme-bg);
+  color: var(--color-text-primary);
+}
+
+.theme-colorful body::before {
+  background: none;
+}
+
+.theme-colorful .bg-background {
+  background: transparent !important;
+}
+
+.theme-colorful .bg-surface,
+.theme-colorful .log-arcade-panel,
+.theme-colorful main [class*="bg-white"],
+.theme-colorful main [class*="bg-gray-50"],
+.theme-colorful main [class*="bg-gray-800"],
+.theme-colorful main [class*="bg-gray-900"],
+.theme-colorful main [class*="bg-slate-900"],
+.theme-colorful main [class*="bg-slate-950"],
+.theme-colorful main [class*="bg-black"] {
+  background-color: rgba(255, 255, 255, 0.76) !important;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.58)) !important;
+  border-color: rgba(15, 23, 42, 0.16) !important;
+  color: #102033 !important;
+  box-shadow: 0 18px 42px rgba(30, 41, 59, 0.14);
+}
+
+.theme-colorful main > div[style*="v796-nunny"] {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.50) 0, transparent 26%),
+    linear-gradient(135deg, #48c6c9 0%, #91c8ff 38%, #d8b4fe 66%, #f8b4cf 100%) !important;
+}
+
+.theme-colorful main > div[style*="v796-nunny"] > .animate-pulse {
+  display: none !important;
+}
+
+.theme-colorful main :is(.text-white, [class*="text-white/"], .text-gray-100, .text-gray-200, .text-gray-300, .text-gray-400, .text-gray-500, .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500) {
+  color: #102033 !important;
+}
+
+.theme-colorful main :is(.text-cyan-100, .text-cyan-200, .text-blue-100, .text-blue-200, .text-purple-100, .text-purple-200, .text-emerald-100, .text-emerald-200, .text-amber-100, .text-amber-200, .text-sky-100, .text-sky-200) {
+  color: #12304a !important;
+}
+
+.theme-colorful main :is(input, select, textarea) {
+  background-color: rgba(255, 255, 255, 0.90) !important;
+  color: #102033 !important;
+  border-color: rgba(15, 23, 42, 0.20) !important;
+}
+
+.theme-colorful main :is(input, textarea)::placeholder {
+  color: #64748b !important;
+}
+
+.theme-colorful main table {
+  color: #102033 !important;
+}
+
+.theme-colorful main thead {
+  background: rgba(255, 255, 255, 0.66) !important;
+  color: #334155 !important;
+}
+
+.theme-colorful main tbody tr {
+  border-color: rgba(15, 23, 42, 0.10) !important;
+}
+
+.theme-colorful main tbody tr:hover {
+  background: rgba(255, 255, 255, 0.52) !important;
+}
+
+.theme-colorful .log-arcade {
+  color: #102033;
+}
+
+.theme-colorful .log-arcade-panel-muted {
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+.theme-colorful .log-arcade-input,
+.theme-colorful .log-arcade-select {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #102033 !important;
+}
+
+.theme-colorful .log-arcade-button,
+.theme-colorful .log-arcade-pill {
+  background: rgba(255, 255, 255, 0.58) !important;
+  border-color: rgba(124, 58, 237, 0.34) !important;
+  color: #102033 !important;
+}
+
+.theme-colorful .log-arcade-pill-active,
+.theme-colorful main .bg-primary,
+.theme-colorful main .bg-blue-600,
+.theme-colorful main [class*="from-blue-600"],
+.theme-colorful main [class*="from-blue-500"],
+.theme-colorful main [class*="from-purple-600"] {
+  background: linear-gradient(135deg, #7c3aed, #0891b2) !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+}
+
+.theme-colorful main .bg-primary *,
+.theme-colorful main .bg-blue-600 *,
+.theme-colorful main [class*="from-blue-600"] *,
+.theme-colorful main [class*="from-blue-500"] *,
+.theme-colorful main [class*="from-purple-600"] * {
+  color: #ffffff !important;
+}
+
+.theme-colorful main [class*="bg-gradient-to-br"],
+.theme-colorful main [class*="bg-gradient-to-r"] {
+  color: #102033;
+}
+
+.theme-colorful main [class*="from-purple-900"],
+.theme-colorful main [class*="from-indigo-900"],
+.theme-colorful main [class*="from-[#1e1b4b]"],
+.theme-colorful main [class*="from-[#a855f7]"] {
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(219, 234, 254, 0.54), rgba(252, 231, 243, 0.56)) !important;
+  color: #102033 !important;
+}
+
+.theme-colorful .neon-glow,
+.theme-colorful .saber-pulse,
+.theme-colorful .saber-shift,
+.theme-colorful .scan-line {
+  animation: none !important;
+}
+
+.theme-colorful main .border-white\/10,
+.theme-colorful main .border-white\/15,
+.theme-colorful main .border-white\/20,
+.theme-colorful main .border-slate-200,
+.theme-colorful main .border-gray-200,
+.theme-colorful main .border-gray-700,
+.theme-colorful main .border-gray-800 {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+.theme-colorful main .divide-white\/5 > :not([hidden]) ~ :not([hidden]),
+.theme-colorful main .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.theme-colorful main .divide-gray-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(15, 23, 42, 0.10) !important;
+}
+
+.theme-colorful main [class*="bg-emerald-"],
+.theme-colorful main [class*="bg-green-"] {
+  color: #064e3b !important;
+}
+
+.theme-colorful main [class*="bg-blue-100"],
+.theme-colorful main [class*="bg-purple-100"],
+.theme-colorful main [class*="bg-orange-100"],
+.theme-colorful main [class*="bg-green-100"] {
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+/* Dashboard light mode polish */
+html:not(.dark):not(.theme-colorful) .dashboard-light-theme {
+  min-height: calc(100vh - 8rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(34, 211, 238, 0.16) 0, transparent 30%),
+    radial-gradient(circle at 92% 10%, rgba(168, 85, 247, 0.14) 0, transparent 26%),
+    radial-gradient(circle at 50% 100%, rgba(236, 72, 153, 0.08) 0, transparent 34%),
+    linear-gradient(135deg, #f7faff 0%, #f4f8ff 48%, #f8fafc 100%);
+  color: #0f172a;
+}
+
+html:not(.dark):not(.theme-colorful) .dashboard-light-card {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+  box-shadow: 0 8px 30px rgba(31, 41, 55, 0.08);
+}
+
+html:not(.dark):not(.theme-colorful) .dashboard-light-hero {
+  box-shadow: 0 18px 48px rgba(79, 124, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+html:not(.dark):not(.theme-colorful) .dashboard-light-grid {
+  background-image:
+    linear-gradient(rgba(79, 124, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 124, 255, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(135deg, rgba(0, 0, 0, 0.55), transparent 68%);
+}
+
+/* All Tasks light mode polish */
+html:not(.dark):not(.theme-colorful) .tasks-light-theme {
+  min-height: calc(100vh - 4rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(125, 211, 252, 0.28), transparent 28%),
+    radial-gradient(circle at 78% 4%, rgba(196, 181, 253, 0.25), transparent 32%),
+    radial-gradient(circle at 90% 78%, rgba(244, 114, 182, 0.16), transparent 30%),
+    linear-gradient(135deg, #f5f8ff 0%, #f7faff 44%, #eef6ff 100%);
+  color: #0f172a;
+}
+
+html:not(.dark):not(.theme-colorful) .tasks-light-theme::before {
+  content: "";
+  position: fixed;
+  inset: 4rem 0 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(79, 124, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 124, 255, 0.055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 78%);
+}
+
+html:not(.dark):not(.theme-colorful) .tasks-light-theme > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Kanban Board page polish */
+html:not(.dark):not(.theme-colorful) .kanban-board-light-theme {
+  min-height: calc(100vh - 4rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 9% 8%, rgba(125, 211, 252, 0.26), transparent 28%),
+    radial-gradient(circle at 82% 2%, rgba(129, 140, 248, 0.2), transparent 30%),
+    radial-gradient(circle at 52% 100%, rgba(45, 212, 191, 0.13), transparent 34%),
+    linear-gradient(135deg, #f7faff 0%, #f5f8ff 48%, #eef5ff 100%);
+  color: #0f172a;
+}
+
+html.dark .kanban-board-dark-theme,
+html:not(.theme-colorful) .kanban-board-dark-theme {
+  min-height: calc(100vh - 4rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 10% 4%, rgba(34, 211, 238, 0.12), transparent 26%),
+    radial-gradient(circle at 88% 10%, rgba(59, 130, 246, 0.12), transparent 28%),
+    radial-gradient(circle at 52% 100%, rgba(99, 102, 241, 0.08), transparent 34%),
+    linear-gradient(135deg, #0b1220 0%, #0f172a 48%, #111827 100%);
+}
+
+html:not(.dark):not(.theme-colorful) .kanban-board-light-theme::before,
+html.dark .kanban-board-dark-theme::before,
+html:not(.theme-colorful) .kanban-board-dark-theme::before {
+  content: "";
+  position: fixed;
+  inset: 4rem 0 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(79, 124, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 124, 255, 0.055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.74), transparent 78%);
+}
+
+html.dark .kanban-board-dark-theme::before,
+html:not(.theme-colorful) .kanban-board-dark-theme::before {
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.035) 1px, transparent 1px);
+}
+
+html:not(.dark):not(.theme-colorful) .kanban-board-light-theme > *,
+html.dark .kanban-board-dark-theme > *,
+html:not(.theme-colorful) .kanban-board-dark-theme > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kanban-board-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.kanban-board-scroll::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+}
+
+.kanban-board-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, rgba(79, 124, 255, 0.62), rgba(45, 212, 191, 0.62));
+  border-radius: 999px;
+}
+
+.sidebar-shell.sidebar-light {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(238, 246, 255, 0.9));
+  border-color: rgba(147, 197, 253, 0.34);
+}
+
+.sidebar-shell.sidebar-light .sidebar-link:hover {
+  background: rgba(239, 246, 255, 0.9);
+  color: #0f172a;
+}
+
+.sidebar-shell.sidebar-light .sidebar-link-active {
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.96), rgba(224, 231, 255, 0.88)) !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 24px rgba(79, 124, 255, 0.14), inset 0 0 0 1px rgba(99, 102, 241, 0.16);
+}
+
+.sidebar-shell.sidebar-dark .sidebar-link-active {
+  background: rgba(14, 165, 233, 0.14) !important;
+  box-shadow: 0 10px 26px rgba(34, 211, 238, 0.12), inset 0 0 0 1px rgba(125, 211, 252, 0.18);
+}
+
+/* Page-specific colorful mode repairs */
+.dashboard-colorful-theme,
+.tasks-colorful-theme,
+.kanban-board-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 4rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  overflow: hidden;
+  color: #102033;
+}
+
+.layout-main-colorful {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(236, 254, 255, 0.88) 0, transparent 34%),
+    radial-gradient(ellipse at 82% 6%, rgba(245, 240, 255, 0.92) 0, transparent 36%),
+    linear-gradient(135deg, #f8faff 0%, #eef4ff 36%, #f5f0ff 68%, #ecfeff 100%) !important;
+  background-attachment: fixed !important;
+}
+
+.dashboard-colorful-theme,
+.tasks-colorful-theme,
+.kanban-board-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme {
+  background: transparent !important;
+}
+
+.dashboard-colorful-theme::after,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(236, 254, 255, 0.95), transparent 34%),
+    radial-gradient(ellipse at 82% 6%, rgba(245, 240, 255, 0.98), transparent 36%),
+    radial-gradient(ellipse at 52% 100%, rgba(238, 244, 255, 0.88), transparent 42%),
+    linear-gradient(135deg, #f8faff 0%, #eef4ff 36%, #f5f0ff 68%, #ecfeff 100%) !important;
+}
+
+.tasks-colorful-theme::after,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 8%, rgba(255, 255, 255, 0.82), transparent 30%),
+    radial-gradient(ellipse at 86% 4%, rgba(217, 70, 239, 0.20), transparent 32%),
+    radial-gradient(ellipse at 90% 82%, rgba(45, 212, 191, 0.22), transparent 32%),
+    linear-gradient(135deg, #ecfeff 0%, #eef4ff 34%, #f5f0ff 66%, #fff7ed 100%) !important;
+}
+
+.kanban-board-colorful-theme::after,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 10% 8%, rgba(255, 255, 255, 0.82), transparent 30%),
+    radial-gradient(ellipse at 82% 8%, rgba(56, 189, 248, 0.24), transparent 32%),
+    radial-gradient(ellipse at 54% 100%, rgba(244, 114, 182, 0.20), transparent 34%),
+    linear-gradient(135deg, #f8faff 0%, #ecfeff 34%, #eef4ff 64%, #fdf2f8 100%) !important;
+}
+
+.dashboard-colorful-theme::before,
+.tasks-colorful-theme::before,
+.kanban-board-colorful-theme::before,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme::before,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme::before,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.58), transparent 80%);
+}
+
+.dashboard-colorful-theme > *,
+.tasks-colorful-theme > *,
+.kanban-board-colorful-theme > *,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme > *,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme > *,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme > * {
+  position: relative;
+  z-index: 2;
+}
+
+.dashboard-colorful-hero,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-hero {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.90), rgba(245, 240, 255, 0.86), rgba(236, 254, 255, 0.84)) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 24px 58px rgba(99, 102, 241, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  color: #102033 !important;
+}
+
+.dashboard-colorful-card,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-card {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 255, 0.78)) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 18px 42px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+.dashboard-colorful-stat-card,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-stat-card {
+  background: var(--dashboard-stat-bg, rgba(255, 255, 255, 0.88)) !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  box-shadow: 0 16px 36px rgba(99, 102, 241, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.dashboard-progress-fill {
+  animation: dashboardProgressSheen 1.8s ease-out both;
+}
+
+@keyframes dashboardProgressSheen {
+  from {
+    transform: scaleX(0.92);
+    filter: saturate(0.9);
+  }
+  to {
+    transform: scaleX(1);
+    filter: saturate(1.05);
+  }
+}
+
+.dashboard-colorful-theme .dashboard-light-grid,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .dashboard-colorful-theme .dashboard-light-grid {
+  background-image:
+    linear-gradient(rgba(124, 58, 237, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.07) 1px, transparent 1px);
+}
+
+.kanban-board-colorful-theme [aria-current="true"],
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme [aria-current="true"] {
+  color: #ffffff !important;
+}
+
+.tasks-colorful-theme .mission-updates,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme .mission-updates {
+  color: #102033 !important;
+}
+
+.tasks-colorful-theme :is(input, select, textarea),
+.kanban-board-colorful-theme :is(input, select, textarea),
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme :is(input, select, textarea),
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme :is(input, select, textarea) {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #102033 !important;
+  border-color: rgba(217, 70, 239, 0.22) !important;
+}
+
+.tasks-colorful-theme :is(input, textarea)::placeholder,
+.kanban-board-colorful-theme :is(input, textarea)::placeholder,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme :is(input, textarea)::placeholder,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme :is(input, textarea)::placeholder {
+  color: #64748b !important;
+}
+
+.tasks-colorful-theme .tasks-kanban-theme,
+.tasks-colorful-theme .tasks-kanban-theme *,
+.kanban-board-colorful-theme,
+.kanban-board-colorful-theme *,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme .tasks-kanban-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .tasks-colorful-theme .tasks-kanban-theme *,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme,
+:is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme * {
+  color: inherit;
+}
 

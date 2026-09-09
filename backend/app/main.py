@@ -19,7 +19,6 @@ from .routers import (
     avatars,
     auth,
     comments,
-    approvals,
     config as config_router,
     feature_flags,
     data_admin,
@@ -43,8 +42,11 @@ from .routers import (
 from .tickets import router as tickets_router
 from .tickets import workflow_router as tickets_workflow_router
 from .tickets import attachments_router as ticket_attachments_router
-from .ws import ticket_chat, tasks as tasks_ws
+from .chat import router as chat_router
+from .chat.schema import ensure_chat_schema
+from .ws import chat as chat_ws, ticket_chat, tasks as tasks_ws
 from .services import task_events
+from .chat import realtime as chat_realtime
 from .webhooks.dispatcher import start_webhook_retry_worker, stop_webhook_retry_worker
 from .webhooks.schema import ensure_webhook_schema
 
@@ -557,6 +559,7 @@ def startup_event() -> None:
     ensure_pg_trgm_extension()
     ensure_reward_schema()
     Base.metadata.create_all(bind=engine)
+    ensure_chat_schema()
     normalize_legacy_task_status_values()
     ensure_employer_id_column()
     ensure_user_profile_columns()
@@ -569,19 +572,20 @@ def startup_event() -> None:
     start_webhook_retry_worker()
     loop = asyncio.get_event_loop()
     task_events.start_task_event_listener(loop=loop, handler=tasks_ws.broadcast_task_event)
+    chat_realtime.start_chat_event_listener(loop=loop, handler=chat_ws.manager.dispatch_remote_event)
 
 
 @app.on_event("shutdown")
 def shutdown_event() -> None:
     stop_webhook_retry_worker()
     task_events.stop_task_event_listener()
+    chat_realtime.stop_chat_event_listener()
 
 
 
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(departments.router)
-app.include_router(approvals.router)
 app.include_router(kanban.router)
 app.include_router(levels.router)
 app.include_router(tasks.router)
@@ -604,17 +608,18 @@ app.include_router(media.router, prefix="/api")
 app.include_router(logs.router)
 app.include_router(updates.router)
 app.include_router(tool_library.router)
+app.include_router(chat_router.router)
 app.include_router(tickets_router.router)
 app.include_router(ticket_attachments_router.router)
 app.include_router(ticket_chat.router)
 app.include_router(tasks_ws.router)
+app.include_router(chat_ws.router)
 app.include_router(webhooks.router)
 app.include_router(webhooks.internal_router)
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(departments.router, prefix="/api")
-app.include_router(approvals.router, prefix="/api")
 app.include_router(kanban.router, prefix="/api")
 app.include_router(levels.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
@@ -635,11 +640,13 @@ app.include_router(avatars.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(updates.router, prefix="/api")
 app.include_router(tool_library.router, prefix="/api")
+app.include_router(chat_router.router, prefix="/api")
 app.include_router(tickets_router.router, prefix="/api")
 app.include_router(tickets_workflow_router.router)
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(webhooks.internal_router, prefix="/api")
 app.include_router(tasks_ws.router, prefix="/api")
+app.include_router(chat_ws.router, prefix="/api")
 
 
 def _health_response() -> dict[str, str]:

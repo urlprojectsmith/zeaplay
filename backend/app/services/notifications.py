@@ -21,6 +21,7 @@ def create_notification(
     deep_link: Optional[str] = None,
     related_task_id: Optional[str] = None,
     related_reward_id: Optional[str] = None,
+    related_chat_id: Optional[str] = None,
     actor_id: Optional[str] = None,
 ) -> models.Notification:
     return dispatch_notification(
@@ -35,5 +36,6 @@ def create_notification(
         deep_link=deep_link,
         related_task_id=related_task_id,
         related_reward_id=related_reward_id,
+        related_chat_id=related_chat_id,
         actor_id=actor_id,
     )

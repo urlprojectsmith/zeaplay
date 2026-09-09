@@ -267,11 +267,13 @@ const countryTimezones = {
   "Ireland": "Europe/Dublin",
 };
 
-const THEME_SEQUENCE = ['light', 'dark', 'colorful'];
+type HeaderTheme = 'light' | 'dark' | 'colorful';
+
+const THEME_SEQUENCE: HeaderTheme[] = ['light', 'dark', 'colorful'];
 
 const themePresentation = {
   light: {
-    label: 'Light',
+    label: 'Light Mode',
     icon: (
       <img
         src="https://res.cloudinary.com/dqhcbck76/image/upload/v1770343928/moon_ywhmbz.png"
@@ -279,10 +281,9 @@ const themePresentation = {
         className="h-6 w-6 object-contain"
       />
     ),
-    className: 'bg-gradient-to-r from-amber-100/80 to-orange-200/80 text-text-primary border border-amber-300 hover:from-amber-100 hover:to-orange-300',
   },
   dark: {
-    label: 'Dark',
+    label: 'Dark Mode',
     icon: (
       <img
         src="https://res.cloudinary.com/dqhcbck76/image/upload/v1770343927/moon_3_gy8i0p.png"
@@ -290,10 +291,9 @@ const themePresentation = {
         className="h-6 w-6 object-contain"
       />
     ),
-    className: 'bg-slate-900/70 text-text-primary border border-slate-600 hover:border-slate-400',
   },
   colorful: {
-    label: 'Colorful',
+    label: 'Colorful Mode',
     icon: (
       <img
         src="https://res.cloudinary.com/dqhcbck76/image/upload/v1770343927/moon_1_okpfg0.png"
@@ -301,7 +301,6 @@ const themePresentation = {
         className="h-6 w-6 object-contain"
       />
     ),
-    className: 'bg-gradient-to-r from-fuchsia-500 via-sky-400 to-violet-500 text-text-inverted border border-transparent shadow-lg hover:shadow-xl',
   },
 };
 
@@ -316,7 +315,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [resolvedTheme, setResolvedTheme] = useState('light');
+  const [resolvedTheme, setResolvedTheme] = useState<HeaderTheme>('light');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
@@ -360,7 +359,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const updateResolvedTheme = () => {
       if (theme === 'system') setResolvedTheme(mediaQuery.matches ? 'dark' : 'light');
-      else setResolvedTheme(theme);
+      else setResolvedTheme(theme as HeaderTheme);
     };
     updateResolvedTheme();
     mediaQuery.addEventListener('change', updateResolvedTheme);
@@ -382,7 +381,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
     setTheme(THEME_SEQUENCE[(currentIndex + 1) % THEME_SEQUENCE.length]);
   };
 
-  const { label: themeLabel, icon: themeIcon, className: themeClassName } = themePresentation[resolvedTheme];
+  const { label: themeLabel, icon: themeIcon } = themePresentation[resolvedTheme];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -510,17 +509,11 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
 
   return (
     <header
-      className={`zea-header-saber relative z-[70] overflow-visible border-b border-border-color/60 ${
-        resolvedTheme === 'dark'
-          ? 'bg-gradient-to-r from-[#0b1220] via-[#0e1628] to-[#05070d] text-text-primary shadow-[0_10px_30px_rgba(2,6,23,0.55),0_1px_0_0_rgba(56,189,248,0.35)]'
-          : resolvedTheme === 'colorful'
-          ? 'bg-gradient-to-r from-fuchsia-500 via-sky-400 to-violet-500 text-text-primary shadow-[0_10px_30px_rgba(2,6,23,0.35)]'
-          : 'bg-gradient-to-r from-amber-100/80 to-orange-200/80 text-text-primary shadow-[0_10px_30px_rgba(2,6,23,0.25)]'
-      }`}
+      className={`zea-header-saber zea-app-header zea-app-header-${resolvedTheme} relative z-[70] overflow-visible border-b`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <video
-          className="h-full w-full object-cover opacity-30"
+          className="zea-header-video h-full w-full object-cover"
           autoPlay
           muted
           loop
@@ -543,7 +536,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
               type="button"
               ref={mobileMenuButtonRef}
               onClick={() => setMobileMenuOpen((prev) => !prev)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-border-color bg-white/10 text-current hover:bg-white/20"
+              className="zea-header-icon-button flex h-10 w-10 items-center justify-center"
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             >
               {mobileMenuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -553,7 +546,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
           {mobileMenuOpen && (
             <div
               ref={mobileMenuRef}
-              className="mt-4 space-y-4 rounded-xl border border-border-color bg-surface p-4 shadow-lg"
+              className="zea-header-mobile-panel mt-4 space-y-4 rounded-xl border p-4 shadow-lg"
             >
               <div className="relative w-full">
                 <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -576,14 +569,11 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
 
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="font-mono text-lg">{currentTime}</div>
+                  <div className="zea-header-time-pill font-mono text-lg">{currentTime}</div>
                   <select
                     value={selectedCountry}
                     onChange={(e) => setSelectedCountry(e.target.value)}
-                    className={`bg-${resolvedTheme === 'dark' ? 'black' : 'white'}/80 rounded-lg px-2 py-1 text-sm focus:outline-none`}
-                    style={{
-                      backgroundColor: resolvedTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)',
-                    }}
+                    className="zea-header-select rounded-lg px-2 py-1 text-sm focus:outline-none"
                   >
                     {Object.keys(countryTimezones).map((country) => (
                       <option key={country} value={country}>
@@ -599,7 +589,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="zea-header-toggle flex items-center gap-2">
                   <span className="text-xs">24h</span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -608,8 +598,8 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                       onChange={() => setIs12Hour(!is12Hour)}
                       className="sr-only peer"
                     />
-                    <div className="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-blue-500"></div>
-                    <div className="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 peer-checked:translate-x-5"></div>
+                    <div className="zea-toggle-track w-10 h-5 rounded-full"></div>
+                    <div className="zea-toggle-thumb absolute left-1 top-1 w-3 h-3 rounded-full transition-transform duration-300 peer-checked:translate-x-5"></div>
                   </label>
                   <span className="text-xs">12h</span>
                 </div>
@@ -618,7 +608,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleThemeToggle}
-                  className={`inline-flex items-center justify-center rounded-full p-2 text-sm font-semibold ${themeClassName}`}
+                  className="mode-switch-button inline-flex items-center justify-center rounded-full p-2 text-sm font-semibold"
                   aria-label={themeLabel}
                 >
                   <span>{themeIcon}</span>
@@ -627,14 +617,14 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                 <button
                   type="button"
                   onClick={triggerRefresh}
-                  className="group flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary shadow-[0_0_18px_rgba(56,189,248,0.2)] transition hover:border-sky-300/60 hover:bg-white/20 hover:text-text-primary"
+                  className="zea-header-control group flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
                   title="Refresh data"
                 >
-                  <ArrowPathIcon className={`h-4 w-4 text-text-accent ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
                 </button>
 
-                <button onClick={() => setDocModalOpen(true)} className="p-2 rounded-full hover:bg-white/20">
+                <button onClick={() => setDocModalOpen(true)} className="zea-header-icon-button p-2">
                   <QuestionMarkCircleIcon className="h-6 w-6" />
                 </button>
                 <TaskDocumentation isOpen={docModalOpen} onClose={() => setDocModalOpen(false)} />
@@ -644,11 +634,11 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                 <div className="relative" ref={notificationDropdownRef}>
                   <button
                     onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
-                    className="p-2 rounded-full hover:bg-white/20 relative"
+                    className="zea-header-icon-button p-2 relative"
                   >
                     <BellIcon className="h-6 w-6" />
                     {unreadCount > 0 && (
-                      <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-primary"></span>
+                      <span className="zea-notification-dot absolute top-0 right-0 h-2 w-2 rounded-full"></span>
                     )}
                   </button>
                   {notificationDropdownOpen && (
@@ -705,7 +695,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                 <div className="relative" ref={profileDropdownRef}>
                   <button
                     onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                    className="flex items-center gap-2 p-2 rounded-full hover:bg-white/20"
+                    className="zea-header-profile-button flex items-center gap-2 p-2"
                   >
                     <div className="relative">
                       {profileAvatar ? (
@@ -765,14 +755,13 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
       <div className="flex items-center gap-3 lg:gap-4">
         {/* ⏰ Time, Country & Smart Clock Assistant */}
         <div className="flex items-center gap-3">
-          <div className="rounded-full border border-sky-400/25 bg-slate-950/60 px-3 py-1.5 font-mono text-sm tracking-[0.2em] text-text-inverted dark:text-text-primary shadow-[0_0_12px_rgba(56,189,248,0.2)]">
+          <div className="zea-header-time-pill rounded-full px-3 py-1.5 font-mono text-sm tracking-[0.2em]">
             {currentTime}
           </div>
           <select
             value={selectedCountry}
             onChange={(e) => setSelectedCountry(e.target.value)}
-            className="rounded-full border border-sky-400/25 bg-slate-950/60 px-3 py-1.5 text-sm text-text-primary shadow-[0_0_10px_rgba(56,189,248,0.15)] focus:outline-none"
-            style={{ backgroundColor: resolvedTheme === 'dark' ? 'rgba(2,6,23,0.65)' : 'rgba(255,255,255,0.85)' }}
+            className="zea-header-select rounded-full px-3 py-1.5 text-sm focus:outline-none"
           >
             {Object.keys(countryTimezones).map((country) => (
               <option key={country} value={country}>
@@ -789,7 +778,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
           />
 
           {/* Time Format Toggle */}
-          <div className="flex items-center gap-1 rounded-full border border-sky-400/25 bg-slate-950/60 px-2 py-1 text-xs text-text-inverted dark:text-text-primary shadow-[0_0_10px_rgba(56,189,248,0.15)]">
+          <div className="zea-header-toggle flex items-center gap-1 rounded-full px-2 py-1 text-xs">
             <span className="text-[10px] tracking-[0.2em]">24h</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -798,8 +787,8 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
                 onChange={() => setIs12Hour(!is12Hour)}
                 className="sr-only peer"
               />
-              <div className="h-5 w-10 rounded-full bg-slate-700 shadow-[inset_0_0_6px_rgba(15,23,42,0.8)] transition-colors peer-checked:bg-amber-400/80"></div>
-              <div className="absolute left-1 top-1 h-3 w-3 rounded-full bg-white shadow-[0_0_8px_rgba(250,204,21,0.6)] transition-transform duration-300 peer-checked:translate-x-5"></div>
+              <div className="zea-toggle-track h-5 w-10 rounded-full transition-colors"></div>
+              <div className="zea-toggle-thumb absolute left-1 top-1 h-3 w-3 rounded-full transition-transform duration-300 peer-checked:translate-x-5"></div>
             </label>
             <span className="text-[10px] tracking-[0.2em]">12h</span>
           </div>
@@ -808,40 +797,41 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
         <button
           type="button"
           onClick={triggerRefresh}
-          className="group flex items-center gap-2 rounded-full border border-sky-400/30 bg-slate-950/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-text-inverted dark:text-text-primary shadow-[0_0_16px_rgba(56,189,248,0.2)] transition hover:scale-[1.03] hover:border-amber-300/50 hover:text-text-accent"
+          className="zea-header-control group flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.35em]"
           title="Refresh data"
         >
-          <ArrowPathIcon className={`h-4 w-4 text-text-accent transition-transform duration-200 group-hover:rotate-180 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <ArrowPathIcon className={`h-4 w-4 transition-transform duration-200 group-hover:rotate-180 ${isRefreshing ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
 
         {/* ❓ Docs */}
         <button
           onClick={() => setDocModalOpen(true)}
-          className="rounded-full border border-sky-400/25 bg-slate-950/60 p-2 text-text-inverted dark:text-text-primary shadow-[0_0_10px_rgba(56,189,248,0.18)] transition hover:scale-[1.03] hover:border-amber-300/50"
+          className="zea-header-icon-button p-2"
         >
           <QuestionMarkCircleIcon className="h-5 w-5" />
         </button>
         <TaskDocumentation isOpen={docModalOpen} onClose={() => setDocModalOpen(false)} />
 
         {/* 💬 Chat */}
+
+        {/* 🔔 Notifications */}
         <button
           onClick={() => navigate('/chat')}
-          className="rounded-full border border-sky-400/25 bg-slate-950/60 p-2 text-text-inverted dark:text-text-primary shadow-[0_0_10px_rgba(56,189,248,0.18)] transition hover:scale-[1.03] hover:border-amber-300/50"
+          className="zea-header-icon-button p-2"
           title="Open Chat"
         >
           <ChatBubbleOvalLeftEllipsisIcon className="h-5 w-5" />
         </button>
 
-        {/* 🔔 Notifications */}
         <div className="relative" ref={notificationDropdownRef}>
           <button
             onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
-            className="relative rounded-full border border-sky-400/25 bg-slate-950/60 p-2 text-text-inverted dark:text-text-primary shadow-[0_0_10px_rgba(56,189,248,0.18)] transition hover:scale-[1.03] hover:border-amber-300/50"
+            className="zea-header-icon-button relative p-2"
           >
             <BellIcon className="h-5 w-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-amber-300"></span>
+              <span className="zea-notification-dot absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full"></span>
             )}
           </button>
           {notificationDropdownOpen && (
@@ -899,22 +889,22 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
         <div className="relative" ref={profileDropdownRef}>
           <button
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-            className="flex items-center gap-2 rounded-full border border-sky-400/25 bg-slate-950/60 px-2 py-1.5 text-text-inverted dark:text-text-primary shadow-[0_0_12px_rgba(56,189,248,0.2)] transition hover:scale-[1.03] hover:border-amber-300/50"
+            className="zea-header-profile-button flex items-center gap-2 px-2 py-1.5"
           >
             <div className="relative">
               {profileAvatar ? (
                 <img
                   src={profileAvatar}
                   alt="Profile"
-                  className="h-8 w-8 rounded-full object-cover ring-2 ring-amber-300/60 shadow-[0_0_12px_rgba(250,204,21,0.4)]"
+                  className="zea-header-avatar h-8 w-8 rounded-full object-cover"
                 />
               ) : (
-                <UserIcon className="h-8 w-8 text-text-accent" />
+                <UserIcon className="h-8 w-8" />
               )}
             </div>
             <div className="flex flex-col items-start">
               <span className="text-sm font-semibold leading-tight">{user?.name}</span>
-              <span className="text-[10px] uppercase tracking-[0.25em] text-text-inverted opacity-70 dark:text-text-secondary leading-tight">{user?.role}</span>
+              <span className="zea-header-role text-[10px] uppercase tracking-[0.25em] opacity-70 leading-tight">{user?.role}</span>
             </div>
           </button>
           {profileDropdownOpen && (

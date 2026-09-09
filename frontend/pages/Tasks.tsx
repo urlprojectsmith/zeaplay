@@ -126,6 +126,82 @@ const STATUS_ORDER: TaskStatus[] = [
     TaskStatus.GRAVEYARD,
 ];
 
+type LightTaskStatusStyle = {
+    background: string;
+    borderColor: string;
+    accent: string;
+    shadow: string;
+};
+
+const LIGHT_TASK_STATUS_STYLES: Record<TaskStatus, LightTaskStatusStyle> = {
+    [TaskStatus.WAITING_FOR_REQUIREMENT]: {
+        background: 'linear-gradient(135deg, #F7FAFF 0%, #EEF6FF 100%)',
+        borderColor: 'rgba(79, 124, 255, 0.28)',
+        accent: '#60A5FA',
+        shadow: '0 14px 34px rgba(79, 124, 255, 0.12)',
+    },
+    [TaskStatus.TODO]: {
+        background: 'linear-gradient(135deg, #F8FAFC 0%, #E0F2FE 100%)',
+        borderColor: 'rgba(14, 165, 233, 0.28)',
+        accent: '#0EA5E9',
+        shadow: '0 14px 34px rgba(14, 165, 233, 0.12)',
+    },
+    [TaskStatus.IN_PROGRESS]: {
+        background: 'linear-gradient(135deg, #EEF4FF 0%, #DCEBFF 100%)',
+        borderColor: 'rgba(79, 124, 255, 0.35)',
+        accent: '#4F7CFF',
+        shadow: '0 14px 34px rgba(79, 124, 255, 0.16)',
+    },
+    [TaskStatus.BLOCKED]: {
+        background: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)',
+        borderColor: 'rgba(244, 63, 94, 0.35)',
+        accent: '#F43F5E',
+        shadow: '0 14px 34px rgba(244, 63, 94, 0.14)',
+    },
+    [TaskStatus.IN_REVIEW]: {
+        background: 'linear-gradient(135deg, #ECFEFF 0%, #D6F5FF 100%)',
+        borderColor: 'rgba(34, 211, 238, 0.35)',
+        accent: '#06B6D4',
+        shadow: '0 14px 34px rgba(6, 182, 212, 0.14)',
+    },
+    [TaskStatus.ON_HOLD]: {
+        background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+        borderColor: 'rgba(251, 146, 60, 0.35)',
+        accent: '#F97316',
+        shadow: '0 14px 34px rgba(249, 115, 22, 0.13)',
+    },
+    [TaskStatus.DONE]: {
+        background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+        borderColor: 'rgba(34, 197, 94, 0.35)',
+        accent: '#22C55E',
+        shadow: '0 14px 34px rgba(34, 197, 94, 0.14)',
+    },
+    [TaskStatus.FAILED]: {
+        background: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)',
+        borderColor: 'rgba(244, 63, 94, 0.35)',
+        accent: '#F43F5E',
+        shadow: '0 14px 34px rgba(244, 63, 94, 0.14)',
+    },
+    [TaskStatus.GRAVEYARD]: {
+        background: 'linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%)',
+        borderColor: 'rgba(100, 116, 139, 0.35)',
+        accent: '#64748B',
+        shadow: '0 14px 34px rgba(100, 116, 139, 0.12)',
+    },
+};
+
+const getLightTaskStatusStyle = (status: TaskStatus) =>
+    LIGHT_TASK_STATUS_STYLES[status] ?? LIGHT_TASK_STATUS_STYLES[TaskStatus.TODO];
+
+const getLightTaskCardStyle = (status: TaskStatus): React.CSSProperties => {
+    const style = getLightTaskStatusStyle(status);
+    return {
+        background: style.background,
+        borderColor: style.borderColor,
+        boxShadow: style.shadow,
+    };
+};
+
 type FilterOption = {
     value: string;
     label: string;
@@ -316,13 +392,21 @@ const Tasks: React.FC = () => {
     const isDark = resolvedTheme === 'dark';
     const isColorful = resolvedTheme === 'colorful';
     const isLight = resolvedTheme === 'light';
-    const kanbanTextColor = isLight ? '#000000' : '#FFFFFF';
+    const kanbanTextColor = isLight ? '#0F172A' : '#FFFFFF';
 
     const taskTextColor = isDark ? 'text-white' : 'text-slate-900';
     const taskTextSecondary = isDark ? 'text-white/80' : 'text-slate-700';
     const taskTextMuted = isDark ? 'text-white/70' : 'text-slate-600';
     const taskBgSecondary = isDark ? 'bg-black/30' : 'bg-slate-200/50';
     const taskTagText = isDark ? 'text-white/80' : 'text-slate-800';
+    const getTaskCardInlineStyle = useCallback(
+        (status: TaskStatus) => (isLight || isColorful ? getLightTaskCardStyle(status) : stageCardStyle(status)),
+        [isLight, isColorful],
+    );
+    const getTaskAccentColor = useCallback(
+        (status: TaskStatus) => getLightTaskStatusStyle(status).accent,
+        [],
+    );
 
 
     const getPointsBadgeClass = useCallback(
@@ -1049,24 +1133,24 @@ const Tasks: React.FC = () => {
     const quickFilterButtonTheme = isLight
         ? {
             active:
-                'border-sky-400/90 text-slate-900 bg-gradient-to-b from-sky-200 via-sky-300 to-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_0_16px_rgba(56,189,248,0.45)] ring-1 ring-sky-300/70 focus-visible:ring-sky-300/70',
+                'border-indigo-300/90 text-white bg-gradient-to-b from-sky-400 via-indigo-500 to-violet-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_12px_24px_rgba(79,70,229,0.28),0_0_22px_rgba(56,189,248,0.32)] ring-1 ring-white/55 focus-visible:ring-sky-300/70',
             inactive:
-                'border-slate-300/80 text-slate-700 bg-gradient-to-b from-white via-slate-100 to-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(15,23,42,0.15)] hover:border-sky-400/70 hover:text-slate-900 focus-visible:ring-sky-300/60',
+                'border-indigo-200/80 text-slate-700 bg-gradient-to-b from-white via-[#F7FAFF] to-[#EEF6FF] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(79,124,255,0.12)] hover:border-sky-400/70 hover:text-slate-950 hover:shadow-[0_12px_24px_rgba(79,124,255,0.18)] focus-visible:ring-sky-300/60',
             overlay:
-                'bg-[linear-gradient(135deg,rgba(255,255,255,0.7),transparent_45%,rgba(148,163,184,0.35))]',
+                'bg-[linear-gradient(135deg,rgba(255,255,255,0.5),transparent_48%,rgba(125,211,252,0.22))]',
             edgeTop: 'bg-white/80',
-            edgeBottom: 'bg-slate-300/70',
+            edgeBottom: 'bg-sky-200/70',
         }
         : isColorful
             ? {
                 active:
-                    'border-fuchsia-200/90 text-white bg-gradient-to-b from-fuchsia-300/90 via-sky-500/85 to-indigo-900/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_0_20px_rgba(217,70,239,0.6)] ring-1 ring-fuchsia-200/70 focus-visible:ring-fuchsia-300/60',
+                    'border-fuchsia-300/90 text-white bg-gradient-to-b from-fuchsia-400 via-violet-500 to-sky-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.52),0_12px_24px_rgba(217,70,239,0.24),0_0_22px_rgba(56,189,248,0.26)] ring-1 ring-white/55 focus-visible:ring-fuchsia-300/60',
                 inactive:
-                    'border-sky-300/70 text-white/90 bg-gradient-to-b from-sky-400/45 via-indigo-700/55 to-slate-950/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(30,27,75,0.55)] hover:border-fuchsia-300/80 hover:text-white focus-visible:ring-fuchsia-300/60',
+                    'border-fuchsia-200/80 text-slate-700 bg-gradient-to-b from-white via-[#fff7fb] to-[#eef6ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(217,70,239,0.1)] hover:border-fuchsia-300/80 hover:text-slate-950 focus-visible:ring-fuchsia-300/60',
                 overlay:
-                    'bg-[linear-gradient(135deg,rgba(216,180,254,0.45),transparent_45%,rgba(30,27,75,0.6))]',
-                edgeTop: 'bg-white/40',
-                edgeBottom: 'bg-indigo-900/60',
+                    'bg-[linear-gradient(135deg,rgba(255,255,255,0.55),transparent_48%,rgba(244,114,182,0.18))]',
+                edgeTop: 'bg-white/80',
+                edgeBottom: 'bg-fuchsia-200/70',
             }
             : {
                 active:
@@ -1084,6 +1168,45 @@ const Tasks: React.FC = () => {
         isActive: boolean,
         tone: 'cyan' | 'indigo' | 'amber' | 'emerald' | 'violet' | 'slate',
     ) => {
+        if (isColorful) {
+            const colorfulToneMap = {
+                cyan: {
+                    active: 'border-cyan-300/90 text-slate-950 bg-gradient-to-b from-cyan-100 via-sky-100 to-indigo-100 shadow-[0_10px_24px_rgba(14,165,233,0.18)]',
+                    inactive: 'border-cyan-200/80 text-slate-700 bg-white/82 hover:border-cyan-300 hover:text-slate-950 hover:bg-cyan-50/80',
+                    icon: 'text-cyan-600',
+                },
+                indigo: {
+                    active: 'border-indigo-300/90 text-slate-950 bg-gradient-to-b from-indigo-100 via-violet-100 to-fuchsia-100 shadow-[0_10px_24px_rgba(124,58,237,0.16)]',
+                    inactive: 'border-indigo-200/80 text-slate-700 bg-white/82 hover:border-indigo-300 hover:text-slate-950 hover:bg-indigo-50/80',
+                    icon: 'text-indigo-600',
+                },
+                amber: {
+                    active: 'border-amber-300/90 text-slate-950 bg-gradient-to-b from-amber-100 via-orange-100 to-rose-100 shadow-[0_10px_24px_rgba(245,158,11,0.16)]',
+                    inactive: 'border-amber-200/80 text-slate-700 bg-white/82 hover:border-amber-300 hover:text-slate-950 hover:bg-amber-50/80',
+                    icon: 'text-amber-600',
+                },
+                emerald: {
+                    active: 'border-emerald-300/90 text-slate-950 bg-gradient-to-b from-emerald-100 via-teal-100 to-cyan-100 shadow-[0_10px_24px_rgba(16,185,129,0.16)]',
+                    inactive: 'border-emerald-200/80 text-slate-700 bg-white/82 hover:border-emerald-300 hover:text-slate-950 hover:bg-emerald-50/80',
+                    icon: 'text-emerald-600',
+                },
+                violet: {
+                    active: 'border-violet-300/90 text-slate-950 bg-gradient-to-b from-violet-100 via-fuchsia-100 to-pink-100 shadow-[0_10px_24px_rgba(168,85,247,0.16)]',
+                    inactive: 'border-violet-200/80 text-slate-700 bg-white/82 hover:border-violet-300 hover:text-slate-950 hover:bg-violet-50/80',
+                    icon: 'text-violet-600',
+                },
+                slate: {
+                    active: 'border-slate-300/90 text-slate-950 bg-gradient-to-b from-slate-100 via-white to-sky-50 shadow-[0_10px_24px_rgba(100,116,139,0.14)]',
+                    inactive: 'border-slate-200/90 text-slate-700 bg-white/82 hover:border-slate-300 hover:text-slate-950 hover:bg-slate-50',
+                    icon: 'text-slate-600',
+                },
+            } as const;
+            const selected = colorfulToneMap[tone];
+            return {
+                className: [getQuickFilterButtonClass(isActive), isActive ? selected.active : selected.inactive].join(' '),
+                iconClassName: selected.icon,
+            };
+        }
         const toneMap = {
             cyan: {
                 active: 'border-cyan-300/80 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.35)] hover:shadow-[0_0_28px_rgba(34,211,238,0.42)]',
@@ -1131,19 +1254,15 @@ const Tasks: React.FC = () => {
     const kanbanTone = getActionButtonTone(viewMode === 'kanban', 'violet');
     const selectAllTone = getActionButtonTone(allSelected, 'slate');
     const pagePanelClass = isLight
-        ? 'border-sky-200/70 bg-gradient-to-br from-slate-100 via-white to-sky-100 shadow-[0_24px_55px_rgba(15,23,42,0.14)]'
+        ? 'border-indigo-200/70 bg-gradient-to-br from-white via-[#F7FAFF] to-[#EEF6FF] shadow-[0_24px_55px_rgba(79,124,255,0.14)]'
         : isColorful
-            ? 'border-fuchsia-300/35 bg-gradient-to-br from-[#160b33] via-[#080f23] to-[#111827] shadow-[0_28px_60px_rgba(76,29,149,0.55)]'
+            ? 'border-white/75 bg-gradient-to-br from-white/90 via-[#f8fbff]/88 to-[#fff7fb]/86 shadow-[0_24px_55px_rgba(124,58,237,0.14)] backdrop-blur-xl'
             : 'border-cyan-400/25 bg-gradient-to-br from-[#060c1a] via-[#020617] to-[#030712] shadow-[0_26px_58px_rgba(8,145,178,0.28)]';
     const templateButtonClass = isLight
-        ? [
-            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold',
-            'border-cyan-500/55 text-slate-900 bg-gradient-to-b from-white via-sky-100 to-sky-200',
-            'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_6px_0_rgba(14,116,144,0.22),0_14px_28px_rgba(14,116,144,0.22)]',
-            'transition-all duration-200 hover:-translate-y-[1px] hover:border-cyan-500/75 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_7px_0_rgba(14,116,144,0.24),0_0_24px_rgba(6,182,212,0.3)]',
-            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_3px_0_rgba(14,116,144,0.25),0_10px_18px_rgba(14,116,144,0.2)]',
-        ].join(' ')
-        : [
+        ? 'task-template-action group relative inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold'
+        : isColorful
+            ? 'task-template-action group relative inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold'
+            : [
             'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold',
             'border-cyan-300/60 text-cyan-100 bg-gradient-to-b from-[#0f2a3f] via-[#0b1f33] to-[#08162b]',
             'shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_6px_0_rgba(6,78,99,0.45),0_16px_30px_rgba(2,132,199,0.22)]',
@@ -1151,14 +1270,10 @@ const Tasks: React.FC = () => {
             'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_3px_0_rgba(6,78,99,0.5),0_12px_20px_rgba(8,145,178,0.25)]',
         ].join(' ');
     const createTaskButtonClass = isLight
-        ? [
-            'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-white',
-            'border-fuchsia-400/65 bg-gradient-to-b from-fuchsia-400 via-violet-500 to-indigo-600',
-            'shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_6px_0_rgba(79,70,229,0.35),0_14px_28px_rgba(124,58,237,0.32)]',
-            'transition-all duration-200 hover:-translate-y-[1px] hover:border-fuchsia-300/85 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_7px_0_rgba(79,70,229,0.38),0_0_30px_rgba(168,85,247,0.35)]',
-            'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_3px_0_rgba(79,70,229,0.4),0_10px_18px_rgba(124,58,237,0.28)]',
-        ].join(' ')
-        : [
+        ? 'task-create-action group relative inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold'
+        : isColorful
+            ? 'task-create-action group relative inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold'
+            : [
             'group relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold text-white',
             'border-fuchsia-300/70 bg-gradient-to-b from-fuchsia-500 via-indigo-600 to-[#312e81]',
             'shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_6px_0_rgba(49,46,129,0.6),0_16px_30px_rgba(99,102,241,0.32)]',
@@ -1166,7 +1281,9 @@ const Tasks: React.FC = () => {
             'active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_3px_0_rgba(49,46,129,0.62),0_12px_22px_rgba(99,102,241,0.3)]',
         ].join(' ');
     const toolbarPanelClass = isLight
-        ? 'relative isolate z-40 rounded-2xl border border-sky-200/70 bg-white/80 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.1)] backdrop-blur-xl'
+        ? 'relative isolate z-40 rounded-2xl border border-indigo-200/70 bg-white/92 p-3 shadow-[0_18px_42px_rgba(79,124,255,0.14)] backdrop-blur-xl'
+        : isColorful
+            ? 'relative isolate z-40 rounded-2xl border border-white/75 bg-white/88 p-3 shadow-[0_18px_42px_rgba(124,58,237,0.13)] backdrop-blur-xl'
         : 'relative isolate z-40 rounded-2xl border border-cyan-400/25 bg-slate-950/55 p-3 shadow-[0_20px_48px_rgba(2,6,23,0.65)] backdrop-blur-xl';
     const filterControlBase = [
         'kanban-filter-control rounded-[10px] border px-4 py-2 text-sm transition',
@@ -1175,16 +1292,16 @@ const Tasks: React.FC = () => {
     ].join(' ');
     const filterControlTheme = isLight
         ? [
-            'border-slate-300/80 text-slate-800',
-            'bg-gradient-to-b from-white via-slate-100 to-slate-200',
-            'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_8px_16px_rgba(15,23,42,0.12)]',
-            'focus:border-sky-400/80 focus:ring-sky-300/60',
+            'border-indigo-200/85 text-slate-800',
+            'bg-white/95',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(79,124,255,0.12)]',
+            'focus:border-[#4F7CFF]/80 focus:ring-[#4F7CFF]/30',
         ].join(' ')
         : isColorful
             ? [
-                'border-fuchsia-300/70 text-white',
-                'bg-gradient-to-b from-indigo-950/85 via-slate-950/90 to-black/95',
-                'shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_18px_rgba(30,27,75,0.5)]',
+                'border-fuchsia-200/85 text-slate-800',
+                'bg-white/94',
+                'shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(217,70,239,0.1)]',
                 'focus:border-fuchsia-200/80 focus:ring-fuchsia-300/60',
             ].join(' ')
             : [
@@ -1199,9 +1316,9 @@ const Tasks: React.FC = () => {
         'kanban-filter-select font-semibold uppercase tracking-[0.22em]',
     ].join(' ');
     const filterPlaceholderClass = isLight
-        ? 'placeholder:text-slate-700'
+        ? 'placeholder:text-slate-500'
         : isColorful
-            ? 'placeholder:text-white'
+            ? 'placeholder:text-slate-500'
             : 'placeholder:text-sky-100';
     const filterInputClass = [
         filterControlBase,
@@ -1211,41 +1328,125 @@ const Tasks: React.FC = () => {
         filterPlaceholderClass,
     ].join(' ');
     const dropdownMenuClass = isLight
-        ? 'border-slate-200 bg-white text-slate-800 shadow-[0_20px_45px_rgba(15,23,42,0.18)]'
+        ? 'border-indigo-100 bg-white text-slate-800 shadow-[0_20px_45px_rgba(79,124,255,0.18)]'
         : isColorful
-            ? 'border-fuchsia-300/40 bg-[#120a2e] text-white shadow-[0_20px_45px_rgba(30,27,75,0.7)]'
+            ? 'border-fuchsia-100 bg-white text-slate-800 shadow-[0_20px_45px_rgba(217,70,239,0.16)]'
             : 'border-slate-500/40 bg-[#081229] text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.7)]';
     const dropdownItemClass = [
         'w-full px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] transition',
-        isLight ? 'text-slate-700 hover:bg-slate-200/80' : isColorful ? 'text-white/90 hover:bg-white/10' : 'text-slate-100 hover:bg-white/10',
+        isLight ? 'text-slate-700 hover:bg-sky-50 hover:text-slate-950' : isColorful ? 'text-slate-700 hover:bg-fuchsia-50 hover:text-slate-950' : 'text-slate-100 hover:bg-white/10',
     ].join(' ');
     const dropdownItemActiveClass = isLight
-        ? 'bg-sky-200/80 text-slate-900'
+        ? 'bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-950'
         : isColorful
-            ? 'bg-fuchsia-500/35 text-white'
+            ? 'bg-gradient-to-r from-fuchsia-100 to-sky-100 text-slate-950'
             : 'bg-sky-500/30 text-white';
     const dropdownButtonClass = filterSelectClass;
     const countPanelClass = isLight
-        ? 'border-sky-200/70 bg-gradient-to-r from-sky-50 via-white to-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.12)]'
+        ? 'border-indigo-200/70 bg-white/82 shadow-[0_18px_42px_rgba(79,124,255,0.12)] backdrop-blur-xl'
         : isColorful
-            ? 'border-fuchsia-300/30 bg-gradient-to-r from-indigo-950/85 via-fuchsia-950/80 to-slate-950/90 shadow-[0_22px_52px_rgba(91,33,182,0.55)]'
+            ? 'border-fuchsia-200/70 bg-white/82 shadow-[0_18px_42px_rgba(217,70,239,0.12)] backdrop-blur-xl'
             : 'border-cyan-400/25 bg-gradient-to-r from-slate-950/85 via-blue-950/80 to-slate-950/90 shadow-[0_20px_50px_rgba(8,145,178,0.22)]';
     const countCardBase = [
         'relative overflow-hidden rounded-2xl border px-4 py-3 min-w-[110px]',
         'transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(15,23,42,0.35)]',
     ].join(' ');
     const countCardTheme = isLight
-        ? 'border-sky-200/80 bg-gradient-to-br from-white via-sky-50 to-slate-100 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]'
+        ? 'border-indigo-200/75 bg-gradient-to-br from-white via-[#F7FAFF] to-[#EEF6FF] text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_10px_22px_rgba(79,124,255,0.1)]'
         : isColorful
-            ? 'border-fuchsia-300/40 bg-gradient-to-br from-indigo-950/70 via-fuchsia-950/75 to-slate-950/80 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]'
+            ? 'border-fuchsia-200/75 bg-gradient-to-br from-white via-[#fff7fb] to-[#eef6ff] text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_10px_22px_rgba(217,70,239,0.1)]'
             : 'border-white/15 bg-gradient-to-br from-slate-900/70 via-slate-950/85 to-black/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]';
-    const countCardLabel = isLight ? 'text-slate-500' : isColorful ? 'text-white/70' : 'text-white/70';
-    const countCardValue = isLight ? 'text-slate-900' : 'text-white';
+    const countCardLabel = isLight || isColorful ? 'text-slate-500' : 'text-white/70';
+    const countCardValue = isLight || isColorful ? 'text-slate-900' : 'text-white';
     const countCardGlow = isLight
-        ? 'bg-[radial-gradient(circle,rgba(56,189,248,0.18),transparent_70%)]'
+        ? 'bg-[radial-gradient(circle,rgba(79,124,255,0.16),transparent_70%)]'
         : isColorful
-            ? 'bg-[radial-gradient(circle,rgba(217,70,239,0.25),transparent_70%)]'
+            ? 'bg-[radial-gradient(circle,rgba(217,70,239,0.14),transparent_70%)]'
             : 'bg-[radial-gradient(circle,rgba(34,211,238,0.25),transparent_70%)]';
+    const totalCountCardStyle = isColorful
+        ? {
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.92), rgba(236,254,255,0.88))',
+            borderColor: 'rgba(125, 211, 252, 0.62)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.95), 0 12px 26px rgba(14,165,233,0.14)',
+        }
+        : undefined;
+    const getCountCardStyle = (status: TaskStatus): React.CSSProperties | undefined => {
+        if (!isColorful) {
+            return undefined;
+        }
+        const statusStyle = getLightTaskStatusStyle(status);
+        return {
+            background: statusStyle.background,
+            borderColor: statusStyle.borderColor,
+            boxShadow: statusStyle.shadow,
+        };
+    };
+    const missionUpdatesClass = isLight
+        ? 'mission-updates rounded-2xl border border-indigo-200/70 bg-gradient-to-r from-slate-950 via-indigo-800 to-fuchsia-700 px-4 py-3 shadow-[0_20px_46px_rgba(79,70,229,0.22)]'
+        : isColorful
+            ? 'mission-updates rounded-2xl border border-white/70 bg-gradient-to-r from-[#fff7ed]/92 via-[#fdf2f8]/92 to-[#ecfeff]/92 px-4 py-3 text-slate-900 shadow-[0_18px_42px_rgba(244,114,182,0.16)] backdrop-blur-xl'
+        : 'mission-updates rounded-2xl border border-rose-400/30 bg-gradient-to-r from-rose-950/80 via-slate-950/90 to-amber-950/80 px-4 py-3 shadow-[0_20px_50px_rgba(190,18,60,0.2)]';
+    const loadingBadgeClass = isLight
+        ? 'rounded-full border border-indigo-200/70 bg-white/90 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700 shadow-[0_10px_24px_rgba(79,124,255,0.18)] backdrop-blur-sm'
+        : isColorful
+            ? 'rounded-full border border-fuchsia-200/80 bg-white/88 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-700 shadow-[0_10px_24px_rgba(217,70,239,0.12)] backdrop-blur-sm'
+        : 'rounded-full border border-cyan-300/35 bg-slate-900/55 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.22)] backdrop-blur-sm';
+    const taskCardClass = isLight
+        ? 'group relative overflow-hidden rounded-2xl border p-4 text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(79,124,255,0.18)] cursor-pointer'
+        : isColorful
+            ? 'group relative overflow-hidden rounded-2xl border p-4 text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(217,70,239,0.14)] cursor-pointer'
+        : 'rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer';
+    const gridTaskCardClass = isLight || isColorful
+        ? taskCardClass
+        : 'relative rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer';
+    const kanbanColumnClass = isLight
+        ? 'min-w-[250px] max-w-[280px] shrink-0 snap-start rounded-2xl border border-indigo-200/70 bg-white/78 p-4 shadow-[0_16px_36px_rgba(79,124,255,0.12)] backdrop-blur-xl'
+        : isColorful
+            ? 'min-w-[250px] max-w-[280px] shrink-0 snap-start rounded-2xl border border-fuchsia-200/70 bg-white/78 p-4 shadow-[0_16px_36px_rgba(217,70,239,0.12)] backdrop-blur-xl'
+        : 'min-w-[250px] max-w-[280px] shrink-0 snap-start rounded-2xl border p-4 backdrop-blur-sm';
+    const kanbanDropZoneClass = isLight
+        ? 'mb-3 rounded-2xl border border-dashed border-indigo-200/90 bg-white/60 px-4 py-3 text-center text-sm text-slate-500'
+        : isColorful
+            ? 'mb-3 rounded-2xl border border-dashed border-fuchsia-200/90 bg-white/60 px-4 py-3 text-center text-sm text-slate-500'
+        : 'mb-3 rounded-2xl border border-dashed border-white/25 bg-white/5 px-4 py-3 text-center text-sm text-white/70';
+    const kanbanTaskCardClass = isLight
+        ? 'group relative overflow-hidden rounded-2xl border p-4 text-slate-900 shadow-[0_14px_34px_rgba(79,124,255,0.12)] transition hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(79,124,255,0.18)]'
+        : isColorful
+            ? 'group relative overflow-hidden rounded-2xl border p-4 text-slate-900 shadow-[0_14px_34px_rgba(217,70,239,0.12)] transition hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(217,70,239,0.16)]'
+        : 'rounded-2xl border border-white/15 bg-white/10 p-4 text-white shadow-[0_18px_40px_rgba(15,23,42,0.45)] transition hover:-translate-y-2 hover:shadow-xl';
+    const paginationTextClass = isLight || isColorful ? 'text-slate-700' : viewMode === 'kanban' ? 'text-white' : 'text-text-secondary';
+    const paginationControlClass = isLight
+        ? 'rounded-full border border-indigo-200/80 bg-white/85 px-3 py-2 text-sm font-medium text-slate-800 shadow-[0_8px_18px_rgba(79,124,255,0.12)]'
+        : isColorful
+            ? 'rounded-full border border-fuchsia-200/80 bg-white/85 px-3 py-2 text-sm font-medium text-slate-800 shadow-[0_8px_18px_rgba(217,70,239,0.10)]'
+        : `rounded-full border border-border-color bg-transparent px-3 py-2 text-sm font-medium shadow-[0_0_12px_rgba(56,189,248,0.2)] ${viewMode === 'kanban' ? 'text-white' : 'text-text-primary'}`;
+    const paginationButtonClass = isLight
+        ? 'rounded-full border border-indigo-200/80 bg-white/85 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-800 shadow-[0_8px_18px_rgba(79,124,255,0.12)] transition hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-50'
+        : isColorful
+            ? 'rounded-full border border-fuchsia-200/80 bg-white/85 px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-800 shadow-[0_8px_18px_rgba(217,70,239,0.10)] transition hover:border-fuchsia-300 hover:bg-fuchsia-50 disabled:opacity-50'
+        : `rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50 ${viewMode === 'kanban' ? 'text-white' : 'text-text-primary'}`;
+    const missionLabelClass = isColorful
+        ? 'rounded-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.4em] text-white shadow-[0_10px_22px_rgba(217,70,239,0.22)]'
+        : 'rounded-full bg-rose-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.4em] text-white shadow-[0_0_18px_rgba(244,63,94,0.65)]';
+    const missionTickerClass = isColorful
+        ? 'mission-ticker-track flex w-max items-center gap-6 pr-8 text-sm text-slate-700'
+        : 'mission-ticker-track flex w-max items-center gap-6 pr-8 text-sm text-white/90';
+    const missionDepartmentClass = isColorful ? 'font-semibold text-amber-700' : 'font-semibold text-amber-200';
+    const missionMutedClass = isColorful ? 'text-slate-500' : 'text-white/70';
+    const missionStrongClass = isColorful ? 'font-semibold text-slate-950' : 'font-semibold text-white';
+    const missionTitleClass = isColorful ? 'text-indigo-700' : 'text-sky-200';
+    const getMissionPriorityClass = (priority: TaskPriority) => {
+        if (isColorful) {
+            if (priority === TaskPriority.URGENT) return 'border-rose-300 bg-rose-50 text-rose-700';
+            if (priority === TaskPriority.HIGH) return 'border-orange-300 bg-orange-50 text-orange-700';
+            if (priority === TaskPriority.MEDIUM) return 'border-amber-300 bg-amber-50 text-amber-700';
+            return 'border-emerald-300 bg-emerald-50 text-emerald-700';
+        }
+        if (priority === TaskPriority.URGENT) return 'border-rose-400/70 bg-rose-500/20 text-rose-100';
+        if (priority === TaskPriority.HIGH) return 'border-orange-400/70 bg-orange-500/20 text-orange-100';
+        if (priority === TaskPriority.MEDIUM) return 'border-amber-300/70 bg-amber-500/20 text-amber-100';
+        return 'border-emerald-300/70 bg-emerald-500/20 text-emerald-100';
+    };
     const statusOptions = useMemo(
         () => [
             { value: '', label: 'All Statuses' },
@@ -1292,11 +1493,11 @@ const Tasks: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className={isLight ? 'tasks-light-theme space-y-6' : isColorful ? 'tasks-colorful-theme relative isolate min-h-screen space-y-6 overflow-hidden' : 'space-y-6'}>
             <div className="p-1 sm:p-1">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <h1 className="text-3xl font-bold text-text-primary">
-                        Tasks <span className="inline-block align-top text-xl text-cyan-300 sparkle-pulse">*</span>
+                    <h1 className={isLight || isColorful ? 'text-3xl font-bold text-slate-950' : 'text-3xl font-bold text-text-primary'}>
+                        Tasks <span className={isLight || isColorful ? 'inline-block align-top text-xl text-fuchsia-500 sparkle-pulse' : 'inline-block align-top text-xl text-cyan-300 sparkle-pulse'}>*</span>
                     </h1>
                     <div className="flex flex-wrap items-center gap-2">
                         {(user?.role === Role.MANAGER || user?.role === Role.ADMIN || user?.role === Role.OWNER) && (
@@ -1312,7 +1513,7 @@ const Tasks: React.FC = () => {
                 </div>
             </div>
 
-            <div className="mission-updates rounded-2xl border border-rose-400/30 bg-gradient-to-r from-rose-950/80 via-slate-950/90 to-amber-950/80 px-4 py-3 shadow-[0_20px_50px_rgba(190,18,60,0.2)]">
+            <div className={missionUpdatesClass}>
                 <style>{`
                     @keyframes taskNewsTicker {
                         0% { transform: translateX(0); }
@@ -1336,38 +1537,30 @@ const Tasks: React.FC = () => {
                     }
                 `}</style>
                 <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-rose-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.4em] text-white shadow-[0_0_18px_rgba(244,63,94,0.65)]">
+                    <span className={missionLabelClass}>
                         Mission Updates
                     </span>
                     <div className="flex-1 overflow-hidden">
                         {newsItems.length === 0 ? (
-                            <span className="text-sm text-white/80">No task updates yet.</span>
+                            <span className={isColorful ? 'text-sm text-slate-600' : 'text-sm text-white/80'}>No task updates yet.</span>
                         ) : (
                             <div
-                                className="mission-ticker-track flex w-max items-center gap-6 pr-8 text-sm text-white/90"
+                                className={missionTickerClass}
                                 style={shouldAnimateNews ? { animation: 'taskNewsTicker 130s linear infinite' } : undefined}
                             >
                                 {newsTickerItems.map((item, index) => (
                                     <span key={`${item.id}-${index}`} className="whitespace-nowrap">
-                                        <span className="font-semibold text-amber-200">{item.department}</span>
-                                        <span className="text-white/70"> team: </span>
-                                        <span className="font-semibold text-white">{item.creator}</span>
-                                        <span className="text-white/70"> created </span>
-                                        <span className="text-sky-200">"{item.title}"</span>
-                                        <span className="text-white/70"> for </span>
-                                        <span className="font-semibold text-white">{item.assignee}</span>
-                                        <span className="text-white/70">. Status: </span>
-                                        <span className="font-semibold text-white">{item.status}</span>
+                                        <span className={missionDepartmentClass}>{item.department}</span>
+                                        <span className={missionMutedClass}> team: </span>
+                                        <span className={missionStrongClass}>{item.creator}</span>
+                                        <span className={missionMutedClass}> created </span>
+                                        <span className={missionTitleClass}>"{item.title}"</span>
+                                        <span className={missionMutedClass}> for </span>
+                                        <span className={missionStrongClass}>{item.assignee}</span>
+                                        <span className={missionMutedClass}>. Status: </span>
+                                        <span className={missionStrongClass}>{item.status}</span>
                                         <span
-                                            className={`ml-2 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${
-                                                item.priority === TaskPriority.URGENT
-                                                    ? 'border-rose-400/70 bg-rose-500/20 text-rose-100'
-                                                    : item.priority === TaskPriority.HIGH
-                                                        ? 'border-orange-400/70 bg-orange-500/20 text-orange-100'
-                                                        : item.priority === TaskPriority.MEDIUM
-                                                            ? 'border-amber-300/70 bg-amber-500/20 text-amber-100'
-                                                            : 'border-emerald-300/70 bg-emerald-500/20 text-emerald-100'
-                                            }`}
+                                            className={`ml-2 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${getMissionPriorityClass(item.priority)}`}
                                         >
                                             {item.priority}
                                         </span>
@@ -1382,13 +1575,13 @@ const Tasks: React.FC = () => {
             {canSeeTaskCounts && (
                 <div className={`rounded-2xl border p-4 ${countPanelClass}`}>
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className={`${countCardBase} ${countCardTheme}`}>
+                        <div className={`${countCardBase} ${countCardTheme}`} style={totalCountCardStyle}>
                             <span className={`pointer-events-none absolute inset-0 ${countCardGlow}`} />
                             <p className={`relative text-[10px] uppercase tracking-[0.24em] ${countCardLabel}`}>Total tasks</p>
                             <p className={`relative text-lg font-semibold ${countCardValue}`}>{totalTasks}</p>
                         </div>
                         {statusSummary.map((item) => (
-                            <div key={item.status} className={`${countCardBase} ${countCardTheme}`}>
+                            <div key={item.status} className={`${countCardBase} ${countCardTheme}`} style={getCountCardStyle(item.status)}>
                                 <span className={`pointer-events-none absolute inset-0 ${countCardGlow}`} />
                                 <p className={`relative text-[10px] uppercase tracking-[0.24em] ${countCardLabel}`}>{item.label}</p>
                                 <p className={`relative text-lg font-semibold ${countCardValue}`}>{item.count}</p>
@@ -1481,9 +1674,13 @@ const Tasks: React.FC = () => {
                                             onClick={() => applyDatePreset(option.key)}
                                             className={[
                                                 'rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition',
-                                                activeDatePreset === option.key
-                                                    ? 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
-                                                    : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
+                                            activeDatePreset === option.key
+                                                    ? isLight || isColorful
+                                                        ? 'border-indigo-300/80 bg-indigo-100 text-indigo-700'
+                                                        : 'border-cyan-300/80 bg-cyan-500/20 text-cyan-100'
+                                                    : isLight || isColorful
+                                                        ? 'border-indigo-100 bg-white text-slate-600 hover:border-indigo-300 hover:text-slate-950'
+                                                        : 'border-white/20 bg-black/20 text-white/80 hover:border-cyan-300/70 hover:text-white',
                                             ].join(' ')}
                                         >
                                             {option.label}
@@ -1491,7 +1688,7 @@ const Tasks: React.FC = () => {
                                     ))}
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">From</label>
+                                    <label className={isLight || isColorful ? 'block text-[10px] uppercase tracking-[0.2em] text-slate-500' : 'block text-[10px] uppercase tracking-[0.2em] text-white/60'}>From</label>
                                     <input
                                         type="date"
                                         value={dateRangeTokens.start}
@@ -1500,7 +1697,7 @@ const Tasks: React.FC = () => {
                                         }
                                         className={filterInputClass}
                                     />
-                                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/60">To</label>
+                                    <label className={isLight || isColorful ? 'block text-[10px] uppercase tracking-[0.2em] text-slate-500' : 'block text-[10px] uppercase tracking-[0.2em] text-white/60'}>To</label>
                                     <input
                                         type="date"
                                         value={dateRangeTokens.end}
@@ -1513,7 +1710,7 @@ const Tasks: React.FC = () => {
                                 <div className="mt-3 flex items-center justify-between">
                                     <button
                                         type="button"
-                                        className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100"
+                                        className={isLight || isColorful ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-600 hover:text-indigo-800' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80 hover:text-cyan-100'}
                                         onClick={() => {
                                             setDueDateFilter('');
                                             setCreationDateFilter('');
@@ -1524,7 +1721,7 @@ const Tasks: React.FC = () => {
                                     </button>
                                     <button
                                         type="button"
-                                        className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white"
+                                        className={isLight || isColorful ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600 hover:text-slate-950' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 hover:text-white'}
                                         onClick={() => setDateRangeOpen(false)}
                                     >
                                         Done
@@ -1672,7 +1869,7 @@ const Tasks: React.FC = () => {
             <div className="relative z-0 grid gap-4 transition-opacity duration-300 ease-out">
                 {loading && (
                     <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center pt-6">
-                        <span className="rounded-full border border-cyan-300/35 bg-slate-900/55 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.22)] backdrop-blur-sm">
+                        <span className={loadingBadgeClass}>
                             Updating...
                         </span>
                     </div>
@@ -1682,12 +1879,18 @@ const Tasks: React.FC = () => {
                     return (
                         <div
                             key={task.id}
-                            className={`rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer ${isContentFading ? 'opacity-65' : 'opacity-100'}`}
-                            style={stageCardStyle(task.status)}
+                            className={`${taskCardClass} ${isContentFading ? 'opacity-65' : 'opacity-100'}`}
+                            style={getTaskCardInlineStyle(task.status)}
                             onMouseEnter={() => prefetchTaskDetail(task.id)}
                             onFocus={() => prefetchTaskDetail(task.id)}
                             onClick={() => handleTaskClick(task.id)}
                         >
+                            {(isLight || isColorful) && (
+                                <span
+                                    className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full"
+                                    style={{ backgroundColor: getTaskAccentColor(task.status) }}
+                                />
+                            )}
                             <div className="flex items-center gap-4">
                                 <input
                                     type="checkbox"
@@ -1698,16 +1901,16 @@ const Tasks: React.FC = () => {
                                     onClick={(e) => e.stopPropagation()}
                                     className="rounded border-border-color bg-surface/50 text-primary focus:ring-primary"
                                 />
-                                <div className="flex-1">
-                                    <h3 className="font-semibold text-text-primary line-clamp-2">{task.title}</h3>
-                                    <p className="text-sm text-text-secondary line-clamp-2 break-words overflow-hidden">{task.description}</p>
+                                <div className="relative flex-1">
+                                    <h3 className={isLight || isColorful ? 'font-semibold text-slate-950 line-clamp-2' : 'font-semibold text-text-primary line-clamp-2'}>{task.title}</h3>
+                                    <p className={isLight || isColorful ? 'text-sm text-slate-600 line-clamp-2 break-words overflow-hidden' : 'text-sm text-text-secondary line-clamp-2 break-words overflow-hidden'}>{task.description}</p>
                                     {showReadMore && (
-                                      <span className="mt-1 inline-block text-xs font-semibold text-primary/80">Read more..</span>
+                                      <span className={isLight || isColorful ? 'mt-1 inline-block text-xs font-semibold text-indigo-600' : 'mt-1 inline-block text-xs font-semibold text-primary/80'}>Read more..</span>
                                     )}
                                     <div className="mt-2 flex items-center gap-2">
                                         <TaskStatusBadge status={task.status} />
                                         <TaskPriorityBadge priority={task.priority} />
-                                        <span className="text-xs text-text-secondary">
+                                        <span className={isLight || isColorful ? 'text-xs text-slate-600' : 'text-xs text-text-secondary'}>
                                             Assigned to: {formatAssigneeNames(task.assignedTo)}
                                         </span>
                                     </div>
@@ -1724,12 +1927,18 @@ const Tasks: React.FC = () => {
                             return (
                                 <div
                                     key={task.id}
-                                    className="relative rounded-2xl border border-border-color p-4 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-                                    style={stageCardStyle(task.status)}
+                                    className={gridTaskCardClass}
+                                    style={getTaskCardInlineStyle(task.status)}
                                     onMouseEnter={() => prefetchTaskDetail(task.id)}
                                     onFocus={() => prefetchTaskDetail(task.id)}
                                     onClick={() => handleTaskClick(task.id)}
                                 >
+                                    {(isLight || isColorful) && (
+                                        <span
+                                            className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full"
+                                            style={{ backgroundColor: getTaskAccentColor(task.status) }}
+                                        />
+                                    )}
                                     <input
                                         type="checkbox"
                                         checked={selectedTaskIds.has(task.id)}
@@ -1739,17 +1948,17 @@ const Tasks: React.FC = () => {
                                         onClick={(e) => e.stopPropagation()}
                                         className="absolute top-3 left-3 z-10 rounded border-border-color bg-surface/50 text-primary focus:ring-primary h-4 w-4"
                                     />
-                                    <div className="pt-1 pl-8"> {/* Padding for checkbox space */}
-                                        <h3 className="min-h-[3rem] font-semibold text-text-primary line-clamp-2">{task.title}</h3>
-                                        <p className="min-h-[2.5rem] text-sm text-text-secondary line-clamp-2 break-words overflow-hidden">{task.description}</p>
+                                    <div className="relative pt-1 pl-8"> {/* Padding for checkbox space */}
+                                        <h3 className={isLight || isColorful ? 'min-h-[3rem] font-semibold text-slate-950 line-clamp-2' : 'min-h-[3rem] font-semibold text-text-primary line-clamp-2'}>{task.title}</h3>
+                                        <p className={isLight || isColorful ? 'min-h-[2.5rem] text-sm text-slate-600 line-clamp-2 break-words overflow-hidden' : 'min-h-[2.5rem] text-sm text-text-secondary line-clamp-2 break-words overflow-hidden'}>{task.description}</p>
                                         {showReadMore && (
-                                            <span className="mt-1 inline-block text-xs font-semibold text-primary/80">Read more..</span>
+                                            <span className={isLight || isColorful ? 'mt-1 inline-block text-xs font-semibold text-indigo-600' : 'mt-1 inline-block text-xs font-semibold text-primary/80'}>Read more..</span>
                                         )}
                                         <div className="mt-2 flex items-center gap-2">
                                             <TaskStatusBadge status={task.status} />
                                             <TaskPriorityBadge priority={task.priority} />
                                         </div>
-                                        <div className="mt-2 text-xs text-text-secondary">
+                                        <div className={isLight || isColorful ? 'mt-2 text-xs text-slate-600' : 'mt-2 text-xs text-text-secondary'}>
                                             Assigned to: {formatAssigneeNames(task.assignedTo)}
                                         </div>
                                         {renderPointsBadge(task)}
@@ -1761,7 +1970,7 @@ const Tasks: React.FC = () => {
                 )}
                 {viewMode === 'kanban' && (
                     <div className="min-w-0 space-y-2">
-                    <style>{`.tasks-kanban-theme, .tasks-kanban-theme * { color: inherit !important; }`}</style>
+                    {(!isLight && !isColorful) && <style>{`.tasks-kanban-theme, .tasks-kanban-theme * { color: inherit !important; }`}</style>}
                     <div className="tasks-kanban-theme min-w-0" style={{ color: kanbanTextColor }}>
                     <div
                         ref={kanbanScrollRef}
@@ -1787,17 +1996,21 @@ const Tasks: React.FC = () => {
                             return (
                             <div
                                 key={column.status}
-                                className="min-w-[250px] max-w-[280px] shrink-0 snap-start rounded-2xl border p-4 backdrop-blur-sm"
-                                style={stageColumnStyle(status)}
+                                className={kanbanColumnClass}
+                                style={isLight || isColorful ? undefined : stageColumnStyle(status)}
                             >
                                 <h2
-                                    className="mb-4 font-semibold"
+                                    className={isLight || isColorful ? 'mb-4 font-semibold text-slate-950' : 'mb-4 font-semibold'}
                                     title={CUSTOM_STATUS_NAMES[column.status]?.tooltip ?? 'Status info unavailable'}
                                 >
+                                    <span
+                                        className={isLight || isColorful ? 'mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle shadow-[0_0_12px_currentColor]' : 'hidden'}
+                                        style={isLight || isColorful ? { color: getTaskAccentColor(status), backgroundColor: getTaskAccentColor(status) } : undefined}
+                                    />
                                     {columnLabel}
                                 </h2>
                                 {isDropZoneHint && (
-                                    <div className="mb-3 rounded-2xl border border-dashed border-white/25 bg-white/5 px-4 py-3 text-center text-sm text-white/70">
+                                    <div className={kanbanDropZoneClass}>
                                         Drop quests here
                                     </div>
                                 )}
@@ -1807,26 +2020,33 @@ const Tasks: React.FC = () => {
                                         return (
                                             <div
                                                 key={task.id}
-                                                className="rounded-2xl border border-white/15 bg-white/10 p-4 text-white shadow-[0_18px_40px_rgba(15,23,42,0.45)] transition hover:-translate-y-2 hover:shadow-xl"
+                                                className={kanbanTaskCardClass}
+                                                style={isLight || isColorful ? getTaskCardInlineStyle(task.status) : undefined}
                                                 onMouseEnter={() => prefetchTaskDetail(task.id)}
                                             >
+                                                {(isLight || isColorful) && (
+                                                    <span
+                                                        className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full"
+                                                        style={{ backgroundColor: getTaskAccentColor(task.status) }}
+                                                    />
+                                                )}
                                                 <div className="flex items-start justify-between gap-2">
-                                                <h3 className="min-h-[3rem] font-semibold text-white line-clamp-2">
+                                                <h3 className={isLight || isColorful ? 'min-h-[3rem] font-semibold text-slate-950 line-clamp-2' : 'min-h-[3rem] font-semibold text-white line-clamp-2'}>
                                                     {task.title}
                                                 </h3>
                                                 <span className="rounded-full border px-3 py-1 text-xs font-semibold" style={priorityPillStyle(task.priority)}>
                                                     {formatPriority(task.priority)}
                                                 </span>
                                                 </div>
-                                                <p className="min-h-[2.5rem] text-sm text-white/80 line-clamp-2 break-words overflow-hidden">
+                                                <p className={isLight || isColorful ? 'min-h-[2.5rem] text-sm text-slate-600 line-clamp-2 break-words overflow-hidden' : 'min-h-[2.5rem] text-sm text-white/80 line-clamp-2 break-words overflow-hidden'}>
                                                     {task.description}
                                                 </p>
                                                 {showReadMore && (
-                                                    <span className="mt-1 inline-block text-xs font-semibold text-cyan-200/90">
+                                                    <span className={isLight || isColorful ? 'mt-1 inline-block text-xs font-semibold text-indigo-600' : 'mt-1 inline-block text-xs font-semibold text-cyan-200/90'}>
                                                         Read more..
                                                     </span>
                                                 )}
-                                                <div className="mt-3 grid gap-1 text-xs text-white/80">
+                                                <div className={isLight || isColorful ? 'mt-3 grid gap-1 text-xs text-slate-600' : 'mt-3 grid gap-1 text-xs text-white/80'}>
                                                     <div>Created by: {task.createdByName || usersMap.get(task.createdBy ?? '')?.name || 'Unknown'}</div>
                                                     <div>Created at: {formatDate(task.createdAt, true)}</div>
                                                     <div>Assigned to: {formatAssigneeNames(task.assignedTo)}</div>
@@ -1835,7 +2055,7 @@ const Tasks: React.FC = () => {
                                                 <button
                                                     onMouseEnter={() => prefetchTaskDetail(task.id)}
                                                     onClick={() => handleTaskClick(task.id)}
-                                                    className="mt-3 w-full rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20"
+                                                    className={isLight || isColorful ? 'mt-3 w-full rounded-full border border-indigo-300/80 bg-white/70 px-3 py-1 text-sm font-semibold text-indigo-700 shadow-[0_8px_18px_rgba(79,124,255,0.12)] transition hover:bg-indigo-50' : 'mt-3 w-full rounded-full border border-blue-400 bg-blue-500/10 px-3 py-1 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20'}
                                                 >
                                                     View
                                                 </button>
@@ -1853,7 +2073,7 @@ const Tasks: React.FC = () => {
             </div>
 
             {/* Bottom buttons removed - now at top */}
-            <div className={`mt-6 grid gap-3 text-xs md:grid-cols-[1fr_auto_1fr] md:items-center ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-secondary'}`}>
+            <div className={`mt-6 grid gap-3 text-xs md:grid-cols-[1fr_auto_1fr] md:items-center ${paginationTextClass}`}>
                 <div className="flex items-center gap-2 md:justify-start">
                     <span className="text-xs uppercase tracking-[0.2em]">Rows</span>
                     <select
@@ -1862,7 +2082,7 @@ const Tasks: React.FC = () => {
                             const nextValue = Number(event.target.value);
                             setPageSizeByView((prev) => ({ ...prev, [viewMode]: nextValue }));
                         }}
-                        className={`rounded-full border border-border-color bg-transparent px-3 py-2 text-sm font-medium shadow-[0_0_12px_rgba(56,189,248,0.2)] ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
+                        className={paginationControlClass}
                     >
                         {[10, 20, 50, 100].map((value) => (
                             <option key={value} value={value}>
@@ -1877,7 +2097,7 @@ const Tasks: React.FC = () => {
                             type="button"
                             onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
-                            className={`rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50 ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
+                            className={paginationButtonClass}
                         >
                             Prev page
                         </button>
@@ -1885,7 +2105,7 @@ const Tasks: React.FC = () => {
                             type="button"
                             onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages}
-                            className={`rounded-full border border-border-color px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] shadow-[0_0_14px_rgba(56,189,248,0.2)] transition hover:border-primary hover:bg-primary/10 disabled:opacity-50 ${viewMode === 'kanban' ? (isLight ? 'text-black' : 'text-white') : 'text-text-primary'}`}
+                            className={paginationButtonClass}
                         >
                             Next page
                         </button>

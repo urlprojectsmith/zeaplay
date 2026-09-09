@@ -169,12 +169,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             if (useColorful) {
                 root.classList.add('theme-colorful');
-                root.classList.remove('dark');
+                root.classList.remove('dark', 'theme-light');
             } else {
                 root.classList.remove('theme-colorful');
                 root.classList.toggle('dark', useDark);
                 if (!useDark) {
                     root.classList.remove('dark');
+                    root.classList.add('theme-light');
+                } else {
+                    root.classList.remove('theme-light');
                 }
             }
         };

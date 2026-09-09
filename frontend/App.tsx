@@ -20,7 +20,6 @@ const Achievements = React.lazy(() => import('./pages/Achievements'));
 const ApiOverview = React.lazy(() => import('./pages/ApiOverview'));
 const MediaLibraryPage = React.lazy(() => import('./pages/MediaLibrary'));
 const Tickets = React.lazy(() => import('./pages/TicketPage'));
-const Inbox = React.lazy(() => import('./pages/Inbox'));
 const Chat = React.lazy(() => import('./pages/Chat'));
 const Logs = React.lazy(() => import('./pages/Logs'));
 const ToolLibrary = React.lazy(() => import('./pages/ToolLibrary'));
@@ -85,8 +84,8 @@ const AppRoutes: React.FC = () => {
                 <Route path="achievements" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Achievements /></ProtectedRoute>} />
                 <Route path="levels" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Navigate to="/achievements?tab=levels" replace /></ProtectedRoute>} />
                 <Route path="tickets" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Tickets /></ProtectedRoute>} />
-                <Route path="inbox" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Inbox /></ProtectedRoute>} />
                 <Route path="chat" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Chat /></ProtectedRoute>} />
+                <Route path="chat/:conversationId" element={<ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}><Chat /></ProtectedRoute>} />
                 <Route path="template-editor" element={<ProtectedRoute roles={[Role.OWNER]}><Navigate to="/achievements?tab=templates" replace /></ProtectedRoute>} />
                 <Route path="api/overview" element={<ProtectedRoute roles={[Role.OWNER]}><ApiOverview /></ProtectedRoute>} />
                 <Route path="master-control" element={<ProtectedRoute roles={[Role.OWNER]}><MasterControl /></ProtectedRoute>} />

@@ -9,6 +9,7 @@ import TaskDetailModal from '../components/TaskDetailModal';
 import { augmentTasksWithPoints, calculateUserPointsFromTasks } from '../utils/taskPoints';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { LEVELS_CONFIG_UPDATED_EVENT, getLevelProgress, loadLevelsConfig } from '../utils/levelsConfigStorage';
+import { BoltIcon, ChartBarIcon, RocketLaunchIcon, SparklesIcon, TrophyIcon } from '../components/icons';
 
 type ThemeMode = 'light' | 'dark' | 'colorful' | 'system';
 type ResolvedTheme = 'light' | 'dark' | 'colorful';
@@ -138,6 +139,80 @@ const getStatusDetails = (status: TaskStatus) => {
     );
 };
 
+type DashboardStatusVisual = {
+    gradient: string;
+    border: string;
+    accent: string;
+    glow: string;
+    focusTint: string;
+};
+
+const dashboardStatusVisuals: Record<TaskStatus, DashboardStatusVisual> = {
+    [TaskStatus.WAITING_FOR_REQUIREMENT]: {
+        gradient: 'from-slate-100 via-slate-50 to-white',
+        border: 'border-slate-200/80',
+        accent: '#64748B',
+        glow: 'shadow-[0_18px_38px_rgba(100,116,139,0.12)]',
+        focusTint: 'linear-gradient(135deg, rgba(248,250,252,0.96), rgba(226,232,240,0.72))',
+    },
+    [TaskStatus.TODO]: {
+        gradient: 'from-slate-100 via-sky-50 to-indigo-50',
+        border: 'border-sky-200/80',
+        accent: '#60A5FA',
+        glow: 'shadow-[0_18px_38px_rgba(96,165,250,0.14)]',
+        focusTint: 'linear-gradient(135deg, rgba(240,249,255,0.96), rgba(224,231,255,0.72))',
+    },
+    [TaskStatus.IN_PROGRESS]: {
+        gradient: 'from-[#E879F9]/35 via-[#C7D2FE]/58 to-[#DBEAFE]/75',
+        border: 'border-violet-200/80',
+        accent: '#8B5CF6',
+        glow: 'shadow-[0_20px_44px_rgba(139,92,246,0.18)]',
+        focusTint: 'linear-gradient(135deg, rgba(245,243,255,0.96), rgba(219,234,254,0.74))',
+    },
+    [TaskStatus.IN_REVIEW]: {
+        gradient: 'from-amber-100 via-orange-50 to-white',
+        border: 'border-orange-200/80',
+        accent: '#F97316',
+        glow: 'shadow-[0_18px_38px_rgba(249,115,22,0.14)]',
+        focusTint: 'linear-gradient(135deg, rgba(255,251,235,0.96), rgba(255,237,213,0.76))',
+    },
+    [TaskStatus.BLOCKED]: {
+        gradient: 'from-red-100 via-rose-50 to-white',
+        border: 'border-rose-200/80',
+        accent: '#F43F5E',
+        glow: 'shadow-[0_18px_38px_rgba(244,63,94,0.15)]',
+        focusTint: 'linear-gradient(135deg, rgba(255,241,242,0.96), rgba(254,226,226,0.74))',
+    },
+    [TaskStatus.ON_HOLD]: {
+        gradient: 'from-yellow-100 via-amber-50 to-white',
+        border: 'border-yellow-200/80',
+        accent: '#EAB308',
+        glow: 'shadow-[0_18px_38px_rgba(234,179,8,0.13)]',
+        focusTint: 'linear-gradient(135deg, rgba(254,252,232,0.96), rgba(254,243,199,0.74))',
+    },
+    [TaskStatus.DONE]: {
+        gradient: 'from-green-100 via-emerald-50 to-teal-50',
+        border: 'border-emerald-200/80',
+        accent: '#22C55E',
+        glow: 'shadow-[0_18px_38px_rgba(34,197,94,0.14)]',
+        focusTint: 'linear-gradient(135deg, rgba(236,253,245,0.96), rgba(209,250,229,0.72))',
+    },
+    [TaskStatus.FAILED]: {
+        gradient: 'from-red-100 via-rose-50 to-pink-50',
+        border: 'border-rose-200/80',
+        accent: '#E11D48',
+        glow: 'shadow-[0_18px_38px_rgba(225,29,72,0.14)]',
+        focusTint: 'linear-gradient(135deg, rgba(255,241,242,0.96), rgba(252,231,243,0.72))',
+    },
+    [TaskStatus.GRAVEYARD]: {
+        gradient: 'from-slate-100 via-gray-50 to-white',
+        border: 'border-slate-200/80',
+        accent: '#64748B',
+        glow: 'shadow-[0_18px_38px_rgba(100,116,139,0.12)]',
+        focusTint: 'linear-gradient(135deg, rgba(248,250,252,0.96), rgba(226,232,240,0.72))',
+    },
+};
+
 const Dashboard: React.FC = () => {
     console.log('Dashboard.tsx: Dashboard component rendering');
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -152,6 +227,7 @@ const Dashboard: React.FC = () => {
     const resolvedTheme = useResolvedTheme(theme as ThemeMode);
     const isDark = resolvedTheme === 'dark';
     const isColorful = resolvedTheme === 'colorful';
+    const isLight = !isDark && !isColorful;
 
     const fetchDashboardData = useCallback(async () => {
         if (!user) {
@@ -320,32 +396,106 @@ const Dashboard: React.FC = () => {
         return <div className="text-center p-8">Loading your quests...</div>;
     }
 
-    const heroBorder = isDark ? 'border-primary/40' : isColorful ? 'border-pink-200/60' : 'border-indigo-200/80';
+    const heroBorder = isDark ? 'border-primary/40' : isColorful ? 'border-white/70' : 'border-indigo-200/70';
     const heroGradient = isDark
         ? 'from-[#1e1b4b] via-[#312e81] to-[#4c1d95]'
         : isColorful
-            ? 'from-[#a855f7]/40 via-[#ec4899]/50 to-[#38bdf8]/45'
-            : 'from-[#ede9fe] via-[#dbeafe] to-[#fef9c3]';
+            ? 'from-white/90 via-[#F5F0FF]/85 to-[#ECFEFF]/85'
+            : 'from-white via-[#eef6ff] to-[#e8f4ff]';
     const heroTitle = isDark ? 'text-white' : 'text-slate-900';
     const heroSub = isDark ? 'text-white/80' : 'text-slate-600';
     const heroMeta = isDark ? 'text-white/60' : 'text-slate-500';
     const statCardBase = isDark
-        ? 'border-white/15 bg-black/25 text-white/80'
+        ? 'border-white/15 bg-slate-950/35 text-white/85 shadow-[0_20px_52px_rgba(2,6,23,0.35)]'
         : isColorful
-            ? 'border-white/60 bg-white/40 text-slate-900 shadow-[0_20px_45px_rgba(129,140,248,0.2)]'
-            : 'border-slate-200 bg-white text-slate-800 shadow-sm';
+            ? 'dashboard-colorful-card border-white/70 bg-white/88 text-slate-800 shadow-[0_18px_42px_rgba(99,102,241,0.14)]'
+            : 'dashboard-light-card border-indigo-200/70 bg-white/95 text-slate-800';
     const statAccent = isDark ? 'text-white' : 'text-slate-900';
+    const progressTrackClass = isLight || isColorful ? 'bg-[#e8eef8]' : 'bg-white/10';
+    const progressFillClass = isLight || isColorful
+        ? 'h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 shadow-[0_0_14px_rgba(168,85,247,0.35)]'
+        : 'h-full rounded-full bg-gradient-to-r from-amber-400 via-fuchsia-400 to-indigo-500';
+    const heroChipClass = isDark ? 'bg-white/10 text-white/80' : 'bg-white/80 text-slate-700 shadow-sm ring-1 ring-indigo-100';
+    const statOverlayOpacity = isLight || isColorful ? 'opacity-75' : 'opacity-60';
+    const metricValueClass = isDark ? 'text-white' : 'text-slate-950';
+    const statLabelClass = isDark ? 'text-white/70' : 'text-slate-700';
+    const statIconClass = isDark
+        ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/15'
+        : 'bg-white/55 text-slate-800 shadow-sm ring-1 ring-white/70';
+    const statOverlayClass = isDark ? 'bg-black/10' : 'bg-white/20';
 
     const questCardBase = isDark
         ? 'bg-surface/70 border border-border-color/70 text-white'
-        : 'bg-white/85 border border-slate-200 text-slate-800 shadow-sm';
+        : isColorful
+            ? 'dashboard-colorful-card bg-white/88 border border-white/70 text-slate-800'
+            : 'dashboard-light-card bg-white/95 border border-indigo-200/70 text-slate-800';
 
     const pipelineSurface = isDark
         ? 'bg-surface/80 border border-border-color/70'
-        : 'bg-white/85 border border-slate-200 shadow-sm';
+        : isColorful
+            ? 'dashboard-colorful-card bg-white/88 border border-white/70'
+            : 'dashboard-light-card bg-white/95 border border-indigo-200/70';
+    const laneTextClass = isLight || isColorful ? 'text-slate-800' : 'text-white';
+    const laneMutedTextClass = isLight || isColorful ? 'text-slate-600' : 'text-white/70';
+    const laneEyebrowClass = isLight || isColorful ? 'text-slate-500' : 'text-white/80';
+    const laneCountClass = isLight || isColorful ? 'bg-white/80 text-slate-700 ring-1 ring-indigo-100' : 'bg-black/30 text-white/80';
+    const laneTrackClass = isLight || isColorful ? 'bg-white/80' : 'bg-black/30';
+    const laneFillClass = isLight || isColorful
+        ? 'h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 shadow-[0_0_12px_rgba(124,58,237,0.28)]'
+        : 'h-full rounded-full bg-white/70';
+    const taskPreviewClass = isLight || isColorful
+        ? 'group flex w-full items-start justify-between gap-3 rounded-xl bg-white/88 px-3 py-2 text-left shadow-[0_8px_22px_rgba(31,41,55,0.08)] ring-1 ring-indigo-100/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_12px_28px_rgba(79,124,255,0.16)]'
+        : 'group flex w-full items-start justify-between gap-3 rounded-xl bg-black/30 px-3 py-2 text-left transition hover:bg-black/40';
+    const taskPreviewTitleClass = isLight || isColorful ? 'text-sm font-semibold text-slate-900 group-hover:text-indigo-700' : 'text-sm font-semibold text-white group-hover:text-amber-200';
+    const taskPreviewDescriptionClass = isLight || isColorful ? 'mt-1 text-xs text-slate-600 line-clamp-2' : 'mt-1 text-xs text-white/70 line-clamp-2';
+    const focusTaskClass = isLight || isColorful
+        ? 'group w-full rounded-2xl border border-white/75 bg-white/90 px-4 py-3 text-left shadow-[0_8px_24px_rgba(31,41,55,0.06)] transition duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-[0_14px_30px_rgba(79,124,255,0.16)]'
+        : 'group w-full rounded-2xl border border-border-color/60 bg-background/60 px-4 py-3 text-left transition hover:border-primary hover:shadow-lg';
+    const dashboardRootClass = isLight
+        ? 'dashboard-light-theme space-y-10'
+        : isColorful
+            ? 'dashboard-colorful-theme relative isolate min-h-screen space-y-10 overflow-hidden'
+            : 'space-y-10';
+    const heroShellClass = isLight
+        ? 'dashboard-light-hero'
+        : isColorful
+            ? 'dashboard-colorful-hero'
+            : '';
+    const levelAccentClass = isColorful
+        ? 'from-[#8B5CF6] to-[#6366F1]'
+        : 'from-indigo-500 to-violet-500';
+    const momentumAccentClass = isColorful
+        ? 'from-[#22D3EE] to-[#3B82F6]'
+        : 'from-cyan-400 to-blue-500';
+    const topStatCards = [
+        {
+            label: 'Quests Assigned',
+            value: totalTasks,
+            accent: 'linear-gradient(135deg, rgba(96,165,250,0.78), rgba(167,139,250,0.68))',
+            icon: RocketLaunchIcon,
+        },
+        {
+            label: 'XP Banked',
+            value: xpScore.toLocaleString(),
+            accent: 'linear-gradient(135deg, rgba(45,212,191,0.78), rgba(34,211,238,0.68))',
+            icon: BoltIcon,
+        },
+        {
+            label: 'Focus Lane',
+            value: focusCount,
+            accent: 'linear-gradient(135deg, rgba(244,114,182,0.74), rgba(251,113,133,0.68))',
+            icon: ChartBarIcon,
+        },
+        {
+            label: 'Unclaimed Rewards',
+            value: Math.max(0, completedCount - 3),
+            accent: 'linear-gradient(135deg, rgba(251,191,36,0.76), rgba(251,113,133,0.66))',
+            icon: TrophyIcon,
+        },
+    ];
 
     return (
-        <div className="space-y-10">
+        <div className={dashboardRootClass}>
             <style>
                 {`
                     @keyframes dashboardPulse {
@@ -363,9 +513,16 @@ const Dashboard: React.FC = () => {
                 `}
             </style>
 
-            <section className={`relative overflow-hidden rounded-3xl border ${heroBorder} bg-gradient-to-br ${heroGradient} p-8 shadow-[0_25px_70px_rgba(76,29,149,0.45)]`}>
-                <div className={`pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full ${isDark ? 'bg-primary/30' : 'bg-white/60'} blur-3xl`} />
-                <div className={`pointer-events-none absolute bottom-0 left-0 h-52 w-52 rounded-full ${isDark ? 'bg-rose-500/30' : 'bg-amber-200/60'} blur-3xl`} />
+            <section className={`${heroShellClass} relative overflow-hidden rounded-3xl border ${heroBorder} bg-gradient-to-br ${heroGradient} p-6 shadow-[0_25px_70px_rgba(76,29,149,0.45)] sm:p-8`}>
+                <div className={`pointer-events-none absolute -right-20 -top-20 h-56 w-72 ${isDark ? 'bg-primary/30' : isLight ? 'bg-cyan-200/55' : 'bg-cyan-200/60'} blur-3xl`} />
+                <div className={`pointer-events-none absolute -bottom-20 -left-16 h-52 w-72 ${isDark ? 'bg-rose-500/30' : isLight ? 'bg-violet-200/50' : 'bg-fuchsia-200/55'} blur-3xl`} />
+                {(isLight || isColorful) && (
+                    <>
+                        <div className="pointer-events-none absolute inset-0 dashboard-light-grid" />
+                        <div className="pointer-events-none absolute right-10 top-10 h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_18px_rgba(34,211,238,0.55)]" />
+                        <div className="pointer-events-none absolute bottom-12 left-1/2 h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_16px_rgba(139,92,246,0.45)]" />
+                    </>
+                )}
                 <div className="relative grid gap-6 lg:grid-cols-[1.2fr,1fr]">
                     <div>
                         <p className={`text-xs font-semibold uppercase tracking-[0.4em] ${heroMeta}`}>Command Center</p>
@@ -374,12 +531,16 @@ const Dashboard: React.FC = () => {
                             Your squad is counting on you. Check active quests, cash in rewards, and keep the streak alive. Complete your daily objectives to unlock bonus XP.
                         </p>
                         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                            <div className={`${statCardBase} rounded-2xl border px-5 py-4 backdrop-blur animate-[dashboardSlide_0.6s_ease]`}>
-                                <p className="text-xs uppercase tracking-[0.3em]">Level</p>
-                                <p className="mt-2 text-3xl font-bold">Lv {level}</p>
-                                <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                            <div className={`${statCardBase} relative overflow-hidden rounded-[22px] border px-5 py-4 backdrop-blur animate-[dashboardSlide_0.6s_ease]`}>
+                                <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${levelAccentClass}`} />
+                                <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs uppercase tracking-[0.24em]">Level</p>
+                                    <SparklesIcon className="h-5 w-5 text-violet-500 transition group-hover:scale-110" />
+                                </div>
+                                <p className={`mt-2 text-4xl font-extrabold ${metricValueClass}`}>Lv {level}</p>
+                                <div className={`mt-4 h-2 w-full overflow-hidden rounded-full ${progressTrackClass}`}>
                                     <div
-                                        className="h-full rounded-full bg-gradient-to-r from-amber-400 via-fuchsia-400 to-indigo-500"
+                                        className={`${progressFillClass} dashboard-progress-fill`}
                                         style={{ width: `${levelProgress}%` }}
                                     />
                                 </div>
@@ -388,17 +549,21 @@ const Dashboard: React.FC = () => {
                                     {nextLevel ? `${xpToNextLevel.toLocaleString()} XP to Lv ${nextLevel.level}` : 'Max level reached'}
                                 </p>
                             </div>
-                            <div className={`${statCardBase} rounded-2xl border px-5 py-4 backdrop-blur animate-[dashboardSlide_0.75s_ease]`}>
-                                <p className="text-xs uppercase tracking-[0.3em]">Momentum</p>
-                                <p className="mt-2 text-3xl font-bold">{momentumScore}%</p>
+                            <div className={`${statCardBase} relative overflow-hidden rounded-[22px] border px-5 py-4 backdrop-blur animate-[dashboardSlide_0.75s_ease]`}>
+                                <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${momentumAccentClass}`} />
+                                <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs uppercase tracking-[0.24em]">Momentum</p>
+                                    <BoltIcon className="h-5 w-5 text-cyan-500 transition group-hover:scale-110" />
+                                </div>
+                                <p className={`mt-2 text-4xl font-extrabold ${metricValueClass}`}>{momentumScore}%</p>
                                 <p className={`mt-3 text-sm ${heroSub}`}>
                                     {completedCount} quests cleared &bull; {focusCount} in focus lane &bull; {blockedCount} blocked
                                 </p>
                                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                                    <span className={`rounded-full px-3 py-1 font-medium ${isDark ? 'bg-white/10 text-white/80' : 'bg-white/70 text-slate-700 shadow-sm'}`}>
+                                    <span className={`rounded-full px-3 py-1 font-semibold shadow-sm ${isDark ? heroChipClass : 'bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-700 ring-1 ring-violet-200/70'}`}>
                                         {streakLength}-day streak
                                     </span>
-                                    <span className={`rounded-full px-3 py-1 font-medium ${isDark ? 'bg-white/10 text-white/80' : 'bg-white/70 text-slate-700 shadow-sm'}`}>
+                                    <span className={`rounded-full px-3 py-1 font-semibold shadow-sm ${isDark ? heroChipClass : 'bg-gradient-to-r from-cyan-100 to-blue-100 text-blue-700 ring-1 ring-cyan-200/70'}`}>
                                         Daily objective: {dailyObjective} quests
                                     </span>
                                 </div>
@@ -406,27 +571,30 @@ const Dashboard: React.FC = () => {
                         </div>
                     </div>
                     <div className="relative grid gap-4 sm:grid-cols-2">
-                        {[
-                            { label: 'Quests Assigned', value: totalTasks, accent: 'from-sky-400 via-indigo-400 to-purple-500', delay: '0s' },
-                            { label: 'XP Banked', value: xpScore.toLocaleString(), accent: 'from-emerald-400 via-teal-400 to-cyan-400', delay: '0.08s' },
-                            { label: 'Focus Lane', value: focusCount, accent: 'from-fuchsia-400 via-rose-400 to-orange-400', delay: '0.16s' },
-                            { label: 'Unclaimed Rewards', value: Math.max(0, completedCount - 3), accent: 'from-amber-400 via-yellow-400 to-rose-400', delay: '0.24s' },
-                        ].map((stat) => (
+                        {topStatCards.map((stat, index) => {
+                            const Icon = stat.icon;
+                            return (
                             <div
                                 key={stat.label}
-                                className={`relative overflow-hidden rounded-2xl border ${statCardBase} px-4 py-5 animate-[dashboardSlide_0.6s_ease]`}
-                                style={{ animationDelay: stat.delay }}
+                                className={`${isColorful ? 'dashboard-colorful-stat-card ' : ''}relative overflow-hidden rounded-[22px] border ${statCardBase} px-4 py-5 transition duration-200 hover:-translate-y-0.5 animate-[dashboardSlide_0.6s_ease]`}
+                                style={{
+                                    animationDelay: `${index * 0.08}s`,
+                                    ...(!isDark ? ({ '--dashboard-stat-bg': stat.accent } as React.CSSProperties) : {}),
+                                }}
                             >
-                                <div className="pointer-events-none absolute inset-0 opacity-60">
-                                    <div className={`h-full w-full rounded-2xl bg-gradient-to-br ${stat.accent}`} />
-                                </div>
+                                <div className={`pointer-events-none absolute inset-0 ${statOverlayClass} ${statOverlayOpacity}`} />
                                 <div className="relative">
-                                    <p className="text-xs uppercase tracking-[0.3em]">{stat.label}</p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className={`text-xs uppercase tracking-[0.22em] ${statLabelClass}`}>{stat.label}</p>
+                                        <span className={`grid h-9 w-9 place-items-center rounded-full ${statIconClass}`}>
+                                            <Icon className="h-4 w-4" />
+                                        </span>
+                                    </div>
                                     <p className={`mt-2 text-2xl font-bold ${statAccent}`}>{stat.value}</p>
                                     <p className={`mt-2 text-xs ${heroMeta}`}>Keep momentum high to unlock bonus loot.</p>
                                 </div>
                             </div>
-                        ))}
+                        );})}
                     </div>
                 </div>
             </section>
@@ -453,53 +621,66 @@ const Dashboard: React.FC = () => {
                                 .filter((status) => tasksByStatus[status]?.length)
                                 .map((status) => {
                                     const detail = getStatusDetails(status);
+                                    const visual = dashboardStatusVisuals[status];
                                     const items = tasksByStatus[status];
                                     const progressValue = Math.min(100, Math.round((items.length / Math.max(1, totalTasks)) * 100));
+                                    const laneGradientClass = (isLight || isColorful) && status === TaskStatus.IN_PROGRESS
+                                        ? 'from-[#f3e8ff] via-[#fce7f3] to-[#ffe4e6]'
+                                        : isLight || isColorful
+                                            ? visual.gradient
+                                            : detail.gradient;
+                                    const laneGradientOpacity = isLight || isColorful ? 'opacity-95' : 'opacity-80';
 
                                     return (
                                         <div
                                             key={status}
-                                            className={`relative overflow-hidden rounded-2xl border px-4 py-5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-2xl ${detail.glow}`}
+                                            className={`relative overflow-hidden rounded-2xl border px-4 py-5 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-2xl ${isLight || isColorful ? `${visual.border} ${visual.glow}` : detail.glow}`}
                                         >
-                                            <div className="pointer-events-none absolute inset-0 opacity-80">
-                                                <div className={`h-full w-full rounded-2xl bg-gradient-to-br ${detail.gradient}`} />
+                                            {(isLight || isColorful) && (
+                                                <span
+                                                    className="pointer-events-none absolute inset-x-5 top-0 h-1 rounded-b-full"
+                                                    style={{ backgroundColor: visual.accent }}
+                                                />
+                                            )}
+                                            <div className={`pointer-events-none absolute inset-0 ${laneGradientOpacity}`}>
+                                                <div className={`h-full w-full rounded-2xl bg-gradient-to-br ${laneGradientClass}`} />
                                             </div>
                                             <div className="relative">
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <p className="text-xs uppercase tracking-[0.3em] text-white/80">{detail.legend}</p>
-                                                        <h3 className="mt-1 text-lg font-semibold text-white">{detail.label}</h3>
+                                                        <p className={`text-xs uppercase tracking-[0.3em] ${laneEyebrowClass}`}>{detail.legend}</p>
+                                                        <h3 className={`mt-1 text-lg font-semibold ${laneTextClass}`}>{detail.label}</h3>
                                                     </div>
-                                                    <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white/80">
+                                                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${laneCountClass}`}>
                                                         {items.length} quest{items.length > 1 ? 's' : ''}
                                                     </span>
                                                 </div>
-                                                <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-black/30">
+                                                <div className={`mt-4 h-2 w-full overflow-hidden rounded-full ${laneTrackClass}`}>
                                                     <div
-                                                        className="h-full rounded-full bg-white/70"
+                                                        className={laneFillClass}
                                                         style={{ width: `${progressValue}%` }}
                                                     />
                                                 </div>
-                                                <p className="mt-3 text-xs text-white/70">{progressValue}% of current load</p>
+                                                <p className={`mt-3 text-xs ${laneMutedTextClass}`}>{progressValue}% of current load</p>
                                                 <div className="mt-4 space-y-3">
                                                     {items.slice(0, 3).map((task) => (
                                                         <button
                                                             type="button"
                                                             key={task.id}
                                                             onClick={() => handleTaskClick(task.id)}
-                                                            className="group flex w-full items-start justify-between gap-3 rounded-xl bg-black/30 px-3 py-2 text-left transition hover:bg-black/40"
+                                                            className={taskPreviewClass}
                                                         >
                                                             <div>
-                                                                <p className="text-sm font-semibold text-white group-hover:text-amber-200">
+                                                                <p className={taskPreviewTitleClass}>
                                                                     {task.title}
                                                                 </p>
-                                                                <p className="mt-1 text-xs text-white/70 line-clamp-2">{task.description}</p>
+                                                                <p className={taskPreviewDescriptionClass}>{task.description}</p>
                                                             </div>
                                                             <TaskPriorityBadge priority={task.priority} />
                                                         </button>
                                                     ))}
                                                     {items.length > 3 && (
-                                                        <p className="text-xs text-white/60">+{items.length - 3} more quests in this lane</p>
+                                                        <p className={`text-xs ${laneMutedTextClass}`}>+{items.length - 3} more quests in this lane</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -523,7 +704,8 @@ const Dashboard: React.FC = () => {
                                         type="button"
                                         key={task.id}
                                         onClick={() => handleTaskClick(task.id)}
-                                        className="group w-full rounded-2xl border border-border-color/60 bg-background/60 px-4 py-3 text-left transition hover:border-primary hover:shadow-lg"
+                                        className={focusTaskClass}
+                                        style={isLight || isColorful ? { background: dashboardStatusVisuals[task.status].focusTint } : undefined}
                                     >
                                         <div className="flex items-center justify-between">
                                             <p className="text-sm font-semibold text-text-primary group-hover:text-primary">{task.title}</p>

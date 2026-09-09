@@ -69,6 +69,8 @@ def _resolve_url(notification: models.Notification) -> Optional[str]:
         return f"/users/{notification.entity_id}"
     if notification.entity_type == models.NotificationEntityTypeEnum.DEPARTMENT and notification.entity_id:
         return f"/departments/{notification.entity_id}"
+    if notification.related_chat_id:
+        return f"/chat/{notification.related_chat_id}"
     return None
 
 
@@ -97,6 +99,7 @@ def create_history_notification(
     deep_link: Optional[str] = None,
     related_task_id: Optional[str] = None,
     related_reward_id: Optional[str] = None,
+    related_chat_id: Optional[str] = None,
     actor_id: Optional[str] = None,
 ) -> models.Notification:
     notification = models.Notification(
@@ -110,6 +113,7 @@ def create_history_notification(
         deep_link=deep_link,
         related_task_id=related_task_id,
         related_reward_id=related_reward_id,
+        related_chat_id=related_chat_id,
         created_at=datetime.utcnow(),
     )
     db.add(notification)
@@ -177,6 +181,7 @@ def dispatch_notification(
     deep_link: Optional[str] = None,
     related_task_id: Optional[str] = None,
     related_reward_id: Optional[str] = None,
+    related_chat_id: Optional[str] = None,
     actor_id: Optional[str] = None,
 ) -> models.Notification:
     notification = create_history_notification(
@@ -191,6 +196,7 @@ def dispatch_notification(
         deep_link=deep_link,
         related_task_id=related_task_id,
         related_reward_id=related_reward_id,
+        related_chat_id=related_chat_id,
         actor_id=actor_id,
     )
     module = resolve_module(notification_type, entity_type)

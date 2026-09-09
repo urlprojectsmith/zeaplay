@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage } from '../types';
 import { ChatBubbleOvalLeftEllipsisIcon, XMarkIcon, PaperAirplaneIcon } from './icons';
 import { BOT_ERROR_MESSAGE, generateSessionId, sendAiMessage } from '../utils/aiClient';
 
+type BotChatMessage = {
+    sender: 'bot' | 'user';
+    text: string;
+};
+
 const Chatbot: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([
+    const [messages, setMessages] = useState<BotChatMessage[]>([
         { sender: 'bot', text: "Hello! I'm your AI assistant. How can I help you manage your tasks today?" }
     ]);
     const [userInput, setUserInput] = useState('');
@@ -22,7 +26,7 @@ const Chatbot: React.FC = () => {
     const handleSendMessage = async () => {
         if (!userInput.trim()) return;
 
-        const newUserMessage: ChatMessage = { sender: 'user', text: userInput };
+        const newUserMessage: BotChatMessage = { sender: 'user', text: userInput };
         setMessages(prev => [...prev, newUserMessage]);
         const currentInput = userInput;
         setUserInput('');
@@ -34,11 +38,11 @@ const Chatbot: React.FC = () => {
                 sessionId,
             });
 
-            const newBotMessage: ChatMessage = { sender: 'bot', text: botReply };
+            const newBotMessage: BotChatMessage = { sender: 'bot', text: botReply };
             setMessages(prev => [...prev, newBotMessage]);
         } catch (error) {
             console.error('Error communicating with the chatbot webhook:', error);
-            const errorMessage: ChatMessage = { sender: 'bot', text: BOT_ERROR_MESSAGE };
+            const errorMessage: BotChatMessage = { sender: 'bot', text: BOT_ERROR_MESSAGE };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);

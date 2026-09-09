@@ -21,12 +21,13 @@
   <script>
     (function () {
       const storageKey = 'zenith-task-theme';
-      const storedTheme = localStorage.getItem(storageKey) || 'system';
+      const storedTheme = localStorage.getItem(storageKey) || 'dark';
       const root = document.documentElement;
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
       root.classList.remove('dark');
       root.classList.remove('theme-colorful');
+      root.classList.remove('theme-light');
 
       const shouldUseColorful = storedTheme === 'colorful';
       const shouldUseDark =
@@ -41,6 +42,8 @@
 
       if (shouldUseDark) {
         root.classList.add('dark');
+      } else {
+        root.classList.add('theme-light');
       }
     })();
   </script>

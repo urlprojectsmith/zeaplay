@@ -186,6 +186,20 @@ class AuditLogCategoryEnum(str, enum.Enum):
 class ChatConversationTypeEnum(str, enum.Enum):
     SPACE = "SPACE"
     DIRECT = "DIRECT"
+    GROUP = "GROUP"
+
+
+class ChatMemberRoleEnum(str, enum.Enum):
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    MEMBER = "MEMBER"
+
+
+class ChatMessageTypeEnum(str, enum.Enum):
+    TEXT = "TEXT"
+    IMAGE = "IMAGE"
+    FILE = "FILE"
+    SYSTEM = "SYSTEM"
 
 
 class AvatarStorageTypeEnum(str, enum.Enum):
@@ -1193,12 +1207,27 @@ class NotificationPreference(Base):
 
 class ChatConversation(Base):
     __tablename__ = "chat_conversations"
+    __table_args__ = (
+        Index("ix_chat_conversations_tenant_updated", "tenant_id", "updated_at"),
+        Index("ix_chat_conversations_tenant_last_message", "tenant_id", "last_message_at"),
+        Index("ix_chat_conversations_type", "type"),
+        Index("ix_chat_conversations_team_id", "team_id"),
+        Index("ix_chat_conversations_project_id", "project_id"),
+        Index("ix_chat_conversations_direct_key", "tenant_id", "direct_key"),
+        UniqueConstraint("tenant_id", "direct_key", name="uq_chat_conversation_direct_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     type: Mapped[ChatConversationTypeEnum] = mapped_column(SAEnum(ChatConversationTypeEnum), nullable=False)
+    project_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    team_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    direct_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_by_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -1215,6 +1244,9 @@ class ChatConversation(Base):
     messages: Mapped[List["ChatMessage"]] = relationship(
         "ChatMessage", back_populates="conversation", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
     )
+    pinned_messages: Mapped[List["PinnedMessage"]] = relationship(
+        "PinnedMessage", back_populates="conversation", cascade="all, delete-orphan"
+    )
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", back_populates="chat"
     )
@@ -1224,17 +1256,27 @@ class ChatParticipant(Base):
     __tablename__ = "chat_participants"
     __table_args__ = (
         UniqueConstraint("conversation_id", "user_id", name="uq_chat_participant"),
+        Index("ix_chat_participants_user_id", "user_id"),
+        Index("ix_chat_participants_conversation_id", "conversation_id"),
+        Index("ix_chat_participants_user_conversation", "user_id", "conversation_id"),
     )
 
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     conversation_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), primary_key=True
+        String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[ChatMemberRoleEnum] = mapped_column(
+        SAEnum(ChatMemberRoleEnum), default=ChatMemberRoleEnum.MEMBER, nullable=False
     )
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_read_message_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     last_read_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    is_muted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     conversation: Mapped["ChatConversation"] = relationship("ChatConversation", back_populates="participants")
     user: Mapped["User"] = relationship("User", back_populates="chat_participations")
@@ -1242,6 +1284,15 @@ class ChatParticipant(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
+    __table_args__ = (
+        Index("ix_chat_messages_conversation_created", "conversation_id", "created_at"),
+        Index("ix_chat_messages_conversation_created_id", "conversation_id", "created_at", "id"),
+        Index("ix_chat_messages_client_id", "conversation_id", "sender_id", "client_id"),
+        Index("ix_chat_messages_content", "content"),
+        Index("ix_chat_messages_sender_id", "sender_id"),
+        Index("ix_chat_messages_reply_to", "reply_to_message_id"),
+        UniqueConstraint("conversation_id", "sender_id", "client_id", name="uq_chat_message_client_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     conversation_id: Mapped[str] = mapped_column(
@@ -1250,7 +1301,16 @@ class ChatMessage(Base):
     sender_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    message_type: Mapped[ChatMessageTypeEnum] = mapped_column(
+        SAEnum(ChatMessageTypeEnum), default=ChatMessageTypeEnum.TEXT, nullable=False
+    )
+    client_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    reply_to_message_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -1258,6 +1318,94 @@ class ChatMessage(Base):
 
     conversation: Mapped["ChatConversation"] = relationship("ChatConversation", back_populates="messages")
     sender: Mapped["User"] = relationship("User", back_populates="chat_messages")
+    reply_to: Mapped[Optional["ChatMessage"]] = relationship("ChatMessage", remote_side=[id])
+    reactions: Mapped[List["MessageReaction"]] = relationship(
+        "MessageReaction", back_populates="message", cascade="all, delete-orphan"
+    )
+    attachments: Mapped[List["MessageAttachment"]] = relationship(
+        "MessageAttachment", back_populates="message", cascade="all, delete-orphan"
+    )
+    mentions: Mapped[List["MessageMention"]] = relationship(
+        "MessageMention", back_populates="message", cascade="all, delete-orphan"
+    )
+
+
+class MessageReaction(Base):
+    __tablename__ = "message_reactions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "user_id", "emoji", name="uq_message_reaction"),
+        Index("ix_message_reactions_message_id", "message_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    message_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    emoji: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    message: Mapped["ChatMessage"] = relationship("ChatMessage", back_populates="reactions")
+    user: Mapped["User"] = relationship("User")
+
+
+class MessageAttachment(Base):
+    __tablename__ = "message_attachments"
+    __table_args__ = (Index("ix_message_attachments_message_id", "message_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    message_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False
+    )
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    message: Mapped["ChatMessage"] = relationship("ChatMessage", back_populates="attachments")
+
+
+class PinnedMessage(Base):
+    __tablename__ = "pinned_messages"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "message_id", name="uq_pinned_message"),
+        Index("ix_pinned_messages_conversation_id", "conversation_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False
+    )
+    pinned_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    conversation: Mapped["ChatConversation"] = relationship("ChatConversation", back_populates="pinned_messages")
+    message: Mapped["ChatMessage"] = relationship("ChatMessage")
+    pinned_by_user: Mapped["User"] = relationship("User")
+
+
+class MessageMention(Base):
+    __tablename__ = "message_mentions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "mentioned_user_id", name="uq_message_mention"),
+        Index("ix_message_mentions_mentioned_user_id", "mentioned_user_id"),
+    )
+
+    message_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("chat_messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    mentioned_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    message: Mapped["ChatMessage"] = relationship("ChatMessage", back_populates="mentions")
+    mentioned_user: Mapped["User"] = relationship("User")
 
 
 class SmtpConfig(Base):

@@ -19,8 +19,6 @@ DEFAULT_FEATURE_FLAGS: list[dict[str, object]] = [
     {"key": "page.media", "label": "Media Library Page", "group": "Pages", "description": "Show the media library.", "enabled": True},
     {"key": "page.tool_library", "label": "Tool Library Page", "group": "Pages", "description": "Show the tool library.", "enabled": True},
     {"key": "page.tickets", "label": "Tickets Page", "group": "Pages", "description": "Show ticket management.", "enabled": True},
-    {"key": "page.inbox", "label": "Inbox Page", "group": "Pages", "description": "Show the inbox.", "enabled": True},
-    {"key": "page.chat", "label": "Chat Page", "group": "Pages", "description": "Show chat module.", "enabled": True},
     {"key": "page.achievements", "label": "Achievements Page", "group": "Pages", "description": "Show achievements.", "enabled": True},
     {"key": "page.levels", "label": "Levels Page", "group": "Pages", "description": "Show levels manager.", "enabled": True},
     {"key": "page.rewards", "label": "Rewards Page", "group": "Pages", "description": "Show rewards hub.", "enabled": True},
@@ -95,7 +93,6 @@ DEFAULT_FEATURE_FLAGS: list[dict[str, object]] = [
     {"key": "comm.notifications", "label": "In-App Notifications", "group": "Communication", "description": "Enable in-app notifications.", "enabled": True},
     {"key": "comm.email", "label": "Email Notifications", "group": "Communication", "description": "Enable email alerts.", "enabled": True},
     {"key": "comm.sms", "label": "SMS Alerts", "group": "Communication", "description": "Enable SMS alerts.", "enabled": True},
-    {"key": "comm.chat", "label": "Chat Module", "group": "Communication", "description": "Enable chat module.", "enabled": True},
     {"key": "comm.in_app", "label": "In-App Messages", "group": "Communication", "description": "Enable in-app messaging.", "enabled": True},
 ]
 
@@ -110,6 +107,14 @@ def _ensure_feature_flags(db: Session) -> None:
         if entry["key"] in existing:
             continue
         db.add(models.FeatureFlag(**entry))
+        created = True
+    legacy_keys = {"page.inbox"}
+    removed_keys = {"page.chat", "comm.chat"}
+    if legacy_keys & set(existing):
+        db.query(models.FeatureFlag).filter(models.FeatureFlag.key.in_(legacy_keys)).delete(synchronize_session=False)
+        created = True
+    if removed_keys & set(existing):
+        db.query(models.FeatureFlag).filter(models.FeatureFlag.key.in_(removed_keys)).delete(synchronize_session=False)
         created = True
     if created:
         db.commit()

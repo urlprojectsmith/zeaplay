@@ -862,7 +862,10 @@ def seed_database() -> None:
         chat_exists = session.execute(select(models.ChatConversation.id).limit(1)).first()
         if not chat_exists:
             chat_now = datetime.utcnow()
+            seeded_users = session.execute(select(models.User)).scalars().all()
+            default_tenant_id = seeded_users[0].tenant_id if seeded_users else DEFAULT_TENANT_ID
             general_space = models.ChatConversation(
+                tenant_id=default_tenant_id,
                 name="General Space",
                 description="Team-wide announcements and quick team updates.",
                 type=models.ChatConversationTypeEnum.SPACE,
@@ -875,12 +878,12 @@ def seed_database() -> None:
             session.add(general_space)
             session.flush()
 
-            seeded_users = session.execute(select(models.User)).scalars().all()
             for user in seeded_users:
                 session.add(
                     models.ChatParticipant(
                         conversation_id=general_space.id,
                         user_id=user.id,
+                        role=models.ChatMemberRoleEnum.ADMIN if user.role in {models.RoleEnum.ADMIN, models.RoleEnum.MANAGER, models.RoleEnum.OWNER} else models.ChatMemberRoleEnum.MEMBER,
                         is_admin=user.role in {models.RoleEnum.ADMIN, models.RoleEnum.MANAGER, models.RoleEnum.OWNER},
                         joined_at=chat_now,
                         last_read_at=chat_now if user.id == "user-1" else chat_now - timedelta(hours=4),
@@ -915,6 +918,7 @@ def seed_database() -> None:
 
             dm_at = welcome_at + timedelta(minutes=10)
             direct_chat = models.ChatConversation(
+                tenant_id=default_tenant_id,
                 name=None,
                 description=None,
                 type=models.ChatConversationTypeEnum.DIRECT,
@@ -932,6 +936,7 @@ def seed_database() -> None:
                     models.ChatParticipant(
                         conversation_id=direct_chat.id,
                         user_id="user-2",
+                        role=models.ChatMemberRoleEnum.OWNER,
                         is_admin=False,
                         joined_at=dm_at,
                         last_read_at=dm_at,
@@ -939,6 +944,7 @@ def seed_database() -> None:
                     models.ChatParticipant(
                         conversation_id=direct_chat.id,
                         user_id="user-3",
+                        role=models.ChatMemberRoleEnum.MEMBER,
                         is_admin=False,
                         joined_at=dm_at,
                         last_read_at=dm_at - timedelta(minutes=1),

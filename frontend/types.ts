@@ -1689,6 +1689,135 @@ export interface Notification {
 
 export type NotificationModule = 'tasks' | 'tickets' | 'users' | 'departments' | 'comments' | 'chat';
 
+export type ChatConversationType = 'DIRECT' | 'GROUP' | 'SPACE';
+export type ChatMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
+
+export interface ChatMember {
+  id: string;
+  conversationId: string;
+  userId: string;
+  name: string;
+  email: string;
+  appRole: Role;
+  role: ChatMemberRole;
+  joinedAt: string;
+  lastReadMessageId?: string | null;
+  lastReadAt?: string | null;
+  isMuted: boolean;
+  isPinned: boolean;
+}
+
+export interface ChatReaction {
+  id: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface ChatAttachment {
+  id: string;
+  messageId: string;
+  fileName: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageKey: string;
+  url?: string | null;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  clientId?: string | null;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: Role;
+  messageType: ChatMessageType;
+  content: string;
+  replyToMessageId?: string | null;
+  replyPreview?: { id: string; senderName: string; content: string } | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deliveryStatus?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  reactions: ChatReaction[];
+  attachments: ChatAttachment[];
+  mentions?: string[];
+}
+
+export interface ChatConversation {
+  id: string;
+  tenantId: string;
+  type: ChatConversationType;
+  name?: string | null;
+  description?: string | null;
+  avatarUrl?: string | null;
+  projectId?: string | null;
+  teamId?: string | null;
+  isPrivate: boolean;
+  isArchived: boolean;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt?: string | null;
+  members: ChatMember[];
+  unreadCount: number;
+  lastMessage?: ChatMessage | null;
+}
+
+export interface ChatConversationCreatePayload {
+  type: Exclude<ChatConversationType, 'DIRECT'>;
+  name?: string | null;
+  description?: string | null;
+  avatarUrl?: string | null;
+  projectId?: string | null;
+  teamId?: string | null;
+  isPrivate?: boolean;
+  memberIds?: string[];
+}
+
+export interface ChatDirectCreatePayload {
+  userId: string;
+}
+
+export interface ChatMessageCreatePayload {
+  content: string;
+  messageType?: ChatMessageType;
+  clientId?: string | null;
+  replyToMessageId?: string | null;
+  attachments?: Omit<ChatAttachment, 'id' | 'messageId' | 'createdAt'>[];
+}
+
+export interface ChatMessagePage {
+  items: ChatMessage[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
+export interface ChatPinnedMessage {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  pinnedBy: string;
+  createdAt: string;
+  message: ChatMessage;
+}
+
+export interface ChatMessageSearchResult {
+  message: ChatMessage;
+  conversation: ChatConversation;
+}
+
+export interface ChatMessageSearchPage {
+  items: ChatMessageSearchResult[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
 export interface NotificationPreference {
   module: NotificationModule;
   pushEnabled: boolean;

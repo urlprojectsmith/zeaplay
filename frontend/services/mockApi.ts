@@ -156,6 +156,16 @@ import {
   ReleaseNotesUpdate,
   FeatureFlag,
   FeatureFlagUpdate,
+  ChatConversation,
+  ChatConversationCreatePayload,
+  ChatDirectCreatePayload,
+  ChatAttachment,
+  ChatMember,
+  ChatMessage,
+  ChatMessageCreatePayload,
+  ChatMessagePage,
+  ChatMessageSearchPage,
+  ChatPinnedMessage,
 
   // Media types
   AvatarFinalizeRequest,
@@ -1336,6 +1346,105 @@ type AuthResponse = {
   user: ApiUser;
 };
 
+type ApiChatMember = {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  app_role: Role;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  joined_at: string;
+  last_read_message_id?: string | null;
+  last_read_at?: string | null;
+  is_muted: boolean;
+  is_pinned: boolean;
+};
+
+type ApiChatReaction = {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+};
+
+type ApiChatAttachment = {
+  id: string;
+  message_id: string;
+  file_name: string;
+  original_file_name: string;
+  mime_type: string;
+  file_size: number;
+  storage_key: string;
+  url?: string | null;
+  created_at: string;
+};
+
+type ApiChatMessage = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: Role;
+  message_type: 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
+  client_id?: string | null;
+  content: string;
+  reply_to_message_id?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  reactions?: ApiChatReaction[];
+  attachments?: ApiChatAttachment[];
+};
+
+type ApiChatConversation = {
+  id: string;
+  tenant_id: string;
+  type: 'DIRECT' | 'GROUP' | 'SPACE';
+  name?: string | null;
+  description?: string | null;
+  avatar_url?: string | null;
+  project_id?: string | null;
+  team_id?: string | null;
+  is_private: boolean;
+  is_archived: boolean;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  last_message_at?: string | null;
+  members?: ApiChatMember[];
+  unread_count: number;
+  last_message?: ApiChatMessage | null;
+};
+
+type ApiChatMessagePage = {
+  items: ApiChatMessage[];
+  next_cursor?: string | null;
+  has_more: boolean;
+};
+
+type ApiChatPinnedMessage = {
+  id: string;
+  conversation_id: string;
+  message_id: string;
+  pinned_by: string;
+  created_at: string;
+  message: ApiChatMessage;
+};
+
+type ApiChatMessageSearchResult = {
+  message: ApiChatMessage;
+  conversation: ApiChatConversation;
+};
+
+type ApiChatMessageSearchPage = {
+  items: ApiChatMessageSearchResult[];
+  next_cursor?: string | null;
+  has_more: boolean;
+};
+
 const http: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
 });
@@ -1483,6 +1592,123 @@ function mapUser(user: ApiUser): User {
     claimedRewardIds: user.claimed_reward_ids ?? [],
     createdAt: user.created_at,
     updatedAt: user.updated_at,
+  };
+}
+
+function mapChatMember(member: ApiChatMember): ChatMember {
+  return {
+    id: member.id,
+    conversationId: member.conversation_id,
+    userId: member.user_id,
+    name: member.name,
+    email: member.email,
+    appRole: member.app_role,
+    role: member.role,
+    joinedAt: member.joined_at,
+    lastReadMessageId: member.last_read_message_id ?? null,
+    lastReadAt: member.last_read_at ?? null,
+    isMuted: member.is_muted,
+    isPinned: member.is_pinned,
+  };
+}
+
+function mapChatMessage(message: ApiChatMessage): ChatMessage {
+  return {
+    id: message.id,
+    clientId: message.client_id ?? null,
+    conversationId: message.conversation_id,
+    senderId: message.sender_id,
+    senderName: message.sender_name,
+    senderRole: message.sender_role,
+    messageType: message.message_type,
+    content: message.content,
+    replyToMessageId: message.reply_to_message_id ?? null,
+    editedAt: message.edited_at ?? null,
+    deletedAt: message.deleted_at ?? null,
+    createdAt: message.created_at,
+    updatedAt: message.updated_at,
+    reactions: (message.reactions ?? []).map((reaction) => ({
+      id: reaction.id,
+      messageId: reaction.message_id,
+      userId: reaction.user_id,
+      emoji: reaction.emoji,
+      createdAt: reaction.created_at,
+    })),
+    attachments: (message.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      messageId: attachment.message_id,
+      fileName: attachment.file_name,
+      originalFileName: attachment.original_file_name,
+      mimeType: attachment.mime_type,
+      fileSize: attachment.file_size,
+      storageKey: attachment.storage_key,
+      url: attachment.url ?? null,
+      createdAt: attachment.created_at,
+    })),
+    mentions: [],
+  };
+}
+
+function mapChatConversation(conversation: ApiChatConversation): ChatConversation {
+  return {
+    id: conversation.id,
+    tenantId: conversation.tenant_id,
+    type: conversation.type,
+    name: conversation.name ?? null,
+    description: conversation.description ?? null,
+    avatarUrl: conversation.avatar_url ?? null,
+    projectId: conversation.project_id ?? null,
+    teamId: conversation.team_id ?? null,
+    isPrivate: conversation.is_private,
+    isArchived: conversation.is_archived,
+    createdById: conversation.created_by_id ?? null,
+    createdAt: conversation.created_at,
+    updatedAt: conversation.updated_at,
+    lastMessageAt: conversation.last_message_at ?? null,
+    members: (conversation.members ?? []).map(mapChatMember),
+    unreadCount: conversation.unread_count,
+    lastMessage: conversation.last_message ? mapChatMessage(conversation.last_message) : null,
+  };
+}
+
+function mapChatPinnedMessage(pin: ApiChatPinnedMessage): ChatPinnedMessage {
+  return {
+    id: pin.id,
+    conversationId: pin.conversation_id,
+    messageId: pin.message_id,
+    pinnedBy: pin.pinned_by,
+    createdAt: pin.created_at,
+    message: mapChatMessage(pin.message),
+  };
+}
+
+function toApiChatConversationPayload(payload: ChatConversationCreatePayload) {
+  return {
+    type: payload.type,
+    name: payload.name ?? null,
+    description: payload.description ?? null,
+    avatar_url: payload.avatarUrl ?? null,
+    project_id: payload.projectId ?? null,
+    team_id: payload.teamId ?? null,
+    is_private: payload.isPrivate ?? false,
+    member_ids: payload.memberIds ?? [],
+  };
+}
+
+function toApiChatMessagePayload(payload: ChatMessageCreatePayload) {
+  return {
+    content: payload.content,
+    message_type: payload.messageType ?? 'TEXT',
+    client_id: payload.clientId ?? null,
+    reply_to_message_id: payload.replyToMessageId ?? null,
+    attachments: (payload.attachments ?? []).map((attachment) => ({
+      file_name: attachment.fileName,
+      original_file_name: attachment.originalFileName,
+      mime_type: attachment.mimeType,
+      file_size: attachment.fileSize,
+      storage_key: attachment.storageKey,
+      url: attachment.url ?? null,
+    })),
   };
 }
 
@@ -2599,6 +2825,225 @@ const api = {
       try {
         const { data } = await http.get<BearerTokenPreview>('/auth/presence-token');
         return data;
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getChatConversations(): Promise<ChatConversation[]> {
+      try {
+        const { data } = await http.get<ApiChatConversation[]>('/chat/conversations');
+        return data.map(mapChatConversation);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getChatConversation(conversationId: string): Promise<ChatConversation & { messages?: ChatMessage[] }> {
+      try {
+        const { data } = await http.get<ApiChatConversation & { messages?: ApiChatMessage[] }>(`/chat/conversations/${conversationId}`);
+        return { ...mapChatConversation(data), messages: (data.messages ?? []).map(mapChatMessage) };
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async createChatConversation(payload: ChatConversationCreatePayload): Promise<ChatConversation> {
+      try {
+        const { data } = await http.post<ApiChatConversation>('/chat/conversations', toApiChatConversationPayload(payload));
+        invalidateCache('chat');
+        return mapChatConversation(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async startDirectChat(payload: ChatDirectCreatePayload): Promise<ChatConversation> {
+      try {
+        const { data } = await http.post<ApiChatConversation>('/chat/direct', { user_id: payload.userId });
+        invalidateCache('chat');
+        return mapChatConversation(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getChatMessages(conversationId: string, options?: { cursor?: string | null; limit?: number }): Promise<ChatMessagePage> {
+      try {
+        const { data } = await http.get<ApiChatMessagePage>(`/chat/conversations/${conversationId}/messages`, {
+          params: {
+            cursor: options?.cursor || undefined,
+            limit: options?.limit ?? 50,
+          },
+        });
+        return {
+          items: data.items.map(mapChatMessage),
+          nextCursor: data.next_cursor ?? null,
+          hasMore: data.has_more,
+        };
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async searchChatMessages(options: { q: string; conversationId?: string | null; senderId?: string | null; cursor?: string | null; limit?: number }): Promise<ChatMessageSearchPage> {
+      try {
+        const { data } = await http.get<ApiChatMessageSearchPage>('/chat/messages/search', {
+          params: {
+            q: options.q,
+            conversation_id: options.conversationId || undefined,
+            sender_id: options.senderId || undefined,
+            cursor: options.cursor || undefined,
+            limit: options.limit ?? 25,
+          },
+        });
+        return {
+          items: data.items.map((item) => ({
+            message: mapChatMessage(item.message),
+            conversation: mapChatConversation(item.conversation),
+          })),
+          nextCursor: data.next_cursor ?? null,
+          hasMore: data.has_more,
+        };
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async sendChatMessage(conversationId: string, payload: ChatMessageCreatePayload): Promise<ChatMessage> {
+      try {
+        const { data } = await http.post<ApiChatMessage>(`/chat/conversations/${conversationId}/messages`, toApiChatMessagePayload(payload));
+        invalidateCache('chat');
+        return mapChatMessage(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async updateChatMessage(messageId: string, content: string): Promise<ChatMessage> {
+      try {
+        const { data } = await http.patch<ApiChatMessage>(`/chat/messages/${messageId}`, { content });
+        invalidateCache('chat');
+        return mapChatMessage(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async deleteChatMessage(messageId: string): Promise<void> {
+      try {
+        await http.delete(`/chat/messages/${messageId}`);
+        invalidateCache('chat');
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async addChatMembers(conversationId: string, userIds: string[], role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'MEMBER'): Promise<ChatMember[]> {
+      try {
+        const { data } = await http.post<ApiChatMember[]>(`/chat/conversations/${conversationId}/members`, {
+          user_ids: userIds,
+          role,
+        });
+        invalidateCache('chat');
+        return data.map(mapChatMember);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async removeChatMember(conversationId: string, userId: string): Promise<void> {
+      try {
+        await http.delete(`/chat/conversations/${conversationId}/members/${userId}`);
+        invalidateCache('chat');
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async markChatRead(conversationId: string, lastReadMessageId?: string | null): Promise<ChatMember> {
+      try {
+        const { data } = await http.post<ApiChatMember>(`/chat/conversations/${conversationId}/read`, {
+          last_read_message_id: lastReadMessageId ?? null,
+        });
+        invalidateCache('chat');
+        return mapChatMember(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async addChatReaction(messageId: string, emoji: string): Promise<ChatMessage> {
+      try {
+        const { data } = await http.post<ApiChatMessage>(`/chat/messages/${messageId}/reactions`, { emoji });
+        invalidateCache('chat');
+        return mapChatMessage(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async removeChatReaction(messageId: string, emoji: string): Promise<ChatMessage> {
+      try {
+        const { data } = await http.delete<ApiChatMessage>(`/chat/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+        invalidateCache('chat');
+        return mapChatMessage(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async uploadChatAttachment(conversationId: string, file: File, onProgress?: (progress: number) => void): Promise<ChatAttachment> {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const { data } = await http.post<Partial<ApiChatAttachment> & Pick<ApiChatAttachment, 'file_name' | 'original_file_name' | 'mime_type' | 'file_size' | 'storage_key'>>(`/chat/conversations/${conversationId}/attachments`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (event) => {
+            if (event.total && onProgress) {
+              onProgress(Math.round((event.loaded / event.total) * 100));
+            }
+          },
+        });
+        return {
+          id: '',
+          messageId: '',
+          fileName: data.file_name,
+          originalFileName: data.original_file_name,
+          mimeType: data.mime_type,
+          fileSize: data.file_size,
+          storageKey: data.storage_key,
+          url: data.url ?? null,
+          createdAt: data.created_at ?? new Date().toISOString(),
+        };
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getChatPinnedMessages(conversationId: string): Promise<ChatPinnedMessage[]> {
+      try {
+        const { data } = await http.get<ApiChatPinnedMessage[]>(`/chat/conversations/${conversationId}/pins`);
+        return data.map(mapChatPinnedMessage);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async pinChatMessage(conversationId: string, messageId: string): Promise<ChatPinnedMessage> {
+      try {
+        const { data } = await http.post<ApiChatPinnedMessage>(`/chat/conversations/${conversationId}/messages/${messageId}/pin`);
+        invalidateCache('chat');
+        return mapChatPinnedMessage(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async unpinChatMessage(conversationId: string, messageId: string): Promise<void> {
+      try {
+        await http.delete(`/chat/conversations/${conversationId}/messages/${messageId}/pin`);
+        invalidateCache('chat');
       } catch (error) {
         mapAxiosError(error);
       }
