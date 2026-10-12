@@ -8,6 +8,7 @@ import { formatDate } from '../utils';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { LEVELS_CONFIG_UPDATED_EVENT, LevelConfig, getLevelProgress, loadLevelsConfig } from '../utils/levelsConfigStorage';
 import { APP_REFRESH_EVENT } from '../utils/appEvents';
+import PageLoader from '../components/loading/PageLoader';
 import {
     augmentTasksWithPoints,
     summarizeTaskPoints,
@@ -2251,7 +2252,7 @@ const Achievements: React.FC = () => {
     };
 
     if (loading) {
-        return <div className="p-12 text-center text-text-secondary">Loading achievements...</div>;
+        return <PageLoader />;
     }
 
     if (!currentUser) return null;

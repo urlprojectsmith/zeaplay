@@ -1,6 +1,7 @@
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 import hashlib
 import json
+import time as perf_time
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status, UploadFile, File, Form, Query
@@ -11,7 +12,7 @@ import shutil
 from uuid import uuid4
 
 from .. import models, schemas
-from ..cache import build_cache_key, get_cached_json, set_cached_json
+from ..cache import build_cache_key, get_cached_json, invalidate_prefix, set_cached_json
 from ..config import get_settings
 from ..notifiers import get_notifier
 from ..database import get_db
@@ -85,6 +86,36 @@ def _serialize_task_list_items(tasks: List[models.Task]) -> List[schemas.TaskLis
     return [_serialize_task_list_item(task) for task in tasks]
 
 
+def _serialize_task_card_item(task: models.Task) -> schemas.TaskListItem:
+    return schemas.TaskListItem(
+        id=task.id,
+        title=task.title,
+        description=task.description or "",
+        status=task.status,
+        priority=task.priority,
+        team=task.team,
+        assigned_to_id=task.assigned_to_id,
+        task_group_id=task.task_group_id,
+        created_by_id=task.created_by_id,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        due_at=task.due_at,
+        completed_at=task.completed_at,
+        recurrence_rule=task.recurrence_rule,
+        recurring_task_id=task.recurring_task_id,
+        clarity_rating=task.clarity_rating,
+        attachments=task.attachments or [],
+        estimated_hours=task.estimated_hours,
+        tags=task.tags or [],
+        follower_ids=[],
+        subtasks=[],
+    )
+
+
+def _serialize_task_card_items(tasks: List[models.Task]) -> List[schemas.TaskListItem]:
+    return [_serialize_task_card_item(task) for task in tasks]
+
+
 def _serialize_task_leaderboard(task: models.Task, status_title_map: dict[str, str]) -> schemas.TaskLeaderboardRead:
     payload = schemas.TaskLeaderboardRead.model_validate(task)
     return payload.model_copy(update={"status_title": _resolve_status_title(task.status, status_title_map)})
@@ -111,6 +142,9 @@ def _invalidate_task_cache(
         payload["task_id"] = task_id
     if task_ids:
         payload["task_ids"] = task_ids
+    invalidate_prefix(f"{settings.cache_prefix}:tasks:list:tenant:{tenant_id}:")
+    invalidate_prefix(f"{settings.cache_prefix}:tasks:kanban:tenant:{tenant_id}:")
+    invalidate_prefix(f"{settings.cache_prefix}:tasks:calendar:tenant:{tenant_id}:")
     task_events.publish_task_event(payload)
 
 
@@ -296,6 +330,120 @@ def _list_cache_key(*, tenant_id: str, user_id: str, params: dict[str, Any]) -> 
 def _kanban_cache_key(*, tenant_id: str, user_id: str, params: dict[str, Any]) -> str:
     fingerprint = _hash_params(params)
     return f"{settings.cache_prefix}:tasks:kanban:tenant:{tenant_id}:user:{user_id}:q:{fingerprint}"
+
+
+def _calendar_cache_key(*, tenant_id: str, user_id: str, params: dict[str, Any]) -> str:
+    fingerprint = _hash_params(params)
+    return f"{settings.cache_prefix}:tasks:calendar:tenant:{tenant_id}:user:{user_id}:q:{fingerprint}"
+
+
+def _lean_task_stmt() -> select:
+    return select(models.Task)
+
+
+def _apply_task_filters(
+    stmt: select,
+    db: Session,
+    current_user: models.User,
+    *,
+    search: Optional[str] = None,
+    status_filter: Optional[models.TaskStatusEnum] = None,
+    priority: Optional[models.TaskPriorityEnum] = None,
+    assignee_id: Optional[str] = None,
+    team: Optional[str] = None,
+    tag: Optional[str] = None,
+    due_date: Optional[str] = None,
+    created_date: Optional[str] = None,
+    quick_filter: Optional[str] = None,
+) -> select:
+    stmt = _apply_task_visibility(stmt, current_user)
+    if search:
+        search_value = search.strip()
+        if search_value:
+            if db.bind and db.bind.dialect.name == "postgresql":
+                stmt = stmt.where(
+                    models.Task.search_vector.op("@@")(
+                        func.websearch_to_tsquery("english", search_value)
+                    )
+                )
+            else:
+                like_value = f"%{search_value}%"
+                stmt = stmt.where(
+                    or_(
+                        models.Task.title.ilike(like_value),
+                        models.Task.description.ilike(like_value),
+                        models.Task.team.ilike(like_value),
+                        models.Task.assignee.has(models.User.name.ilike(like_value)),
+                    )
+                )
+    if status_filter:
+        stmt = stmt.where(models.Task.status == status_filter)
+    if priority:
+        stmt = stmt.where(models.Task.priority == priority)
+    if assignee_id:
+        stmt = stmt.where(models.Task.assigned_to_id == assignee_id)
+    if team:
+        team_value = team.strip()
+        if team_value:
+            stmt = stmt.where(models.Task.team.ilike(team_value))
+    if tag:
+        tag_value = tag.strip()
+        if tag_value:
+            stmt = stmt.where(models.Task.tags.contains([tag_value]))
+    due_range = _parse_date_filter(due_date)
+    if due_range:
+        stmt = stmt.where(models.Task.due_at.between(due_range[0], due_range[1]))
+    created_range = _parse_date_filter(created_date)
+    if created_range:
+        stmt = stmt.where(models.Task.created_at.between(created_range[0], created_range[1]))
+    if quick_filter == "createdByMe":
+        stmt = stmt.where(models.Task.created_by_id == current_user.id)
+    elif quick_filter == "myTasks":
+        stmt = stmt.where(models.Task.assigned_to_id == current_user.id)
+    elif quick_filter == "overdue":
+        now = datetime.utcnow()
+        stmt = stmt.where(
+            models.Task.due_at.is_not(None),
+            models.Task.due_at < now,
+            ~models.Task.status.in_(COMPLETED_STATUSES),
+        )
+    elif quick_filter == "completed":
+        stmt = stmt.where(models.Task.status.in_(COMPLETED_STATUSES))
+    return stmt
+
+
+def _resolve_sort_column(stmt: select, sort_by: str) -> tuple[select, Any]:
+    if sort_by == "dueAt":
+        return stmt, models.Task.due_at
+    if sort_by == "priority":
+        return stmt, _priority_sort_expression()
+    if sort_by == "status":
+        return stmt, _status_sort_expression()
+    if sort_by == "assignee":
+        return stmt.join(models.User, models.Task.assigned_to_id == models.User.id, isouter=True), models.User.name
+    if sort_by == "lastUpdated":
+        return stmt, models.Task.updated_at
+    if sort_by == "title":
+        return stmt, models.Task.title
+    return stmt, models.Task.created_at
+
+
+def _encode_task_cursor(task: models.Task, sort_by: str) -> Optional[str]:
+    if sort_by == "created_at":
+        cursor_value = task.created_at.isoformat()
+    elif sort_by == "lastUpdated":
+        cursor_value = task.updated_at.isoformat()
+    elif sort_by == "dueAt":
+        cursor_value = task.due_at.isoformat() if task.due_at else ""
+    else:
+        return None
+    return f"{cursor_value}|{task.id}"
+
+
+def _log_slow_endpoint(label: str, started_at: float, *, threshold_ms: int = 300) -> None:
+    elapsed_ms = (perf_time.perf_counter() - started_at) * 1000
+    if elapsed_ms >= threshold_ms:
+        print(f"[perf] slow endpoint {label}: {elapsed_ms:.1f}ms")
 
 
 @router.get("", response_model=List[schemas.TaskRead])
@@ -734,13 +882,16 @@ def list_tasks_page(
     quick_filter: Optional[str] = Query(default=None),
     sort_by: str = Query(default="created_at"),
     sort_order: str = Query(default="desc"),
+    cursor: Optional[str] = Query(default=None, description="Cursor in the form '<sort-value>|<task-id>' for forward pagination."),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ) -> schemas.TaskListResponse:
+    started_at = perf_time.perf_counter()
     tenant_id = str(current_user.tenant_id or settings.default_tenant_id)
     cache_params = {
         "page": page,
         "page_size": page_size,
+        "cursor": cursor,
         "search": search,
         "status": status.value if status else None,
         "priority": priority.value if priority else None,
@@ -758,80 +909,21 @@ def list_tasks_page(
     if cached_payload is not None:
         return schemas.TaskListResponse.model_validate(cached_payload)
 
-    stmt = _task_query().order_by(None)
-    stmt = _apply_task_visibility(stmt, current_user)
-
-    if search:
-        search_value = search.strip()
-        if search_value:
-            if db.bind and db.bind.dialect.name == "postgresql":
-                stmt = stmt.where(
-                    models.Task.search_vector.op("@@")(
-                        func.websearch_to_tsquery("english", search_value)
-                    )
-                )
-            else:
-                like_value = f"%{search_value}%"
-                stmt = stmt.where(
-                    or_(
-                        models.Task.title.ilike(like_value),
-                        models.Task.description.ilike(like_value),
-                        models.Task.team.ilike(like_value),
-                        models.Task.assignee.has(models.User.name.ilike(like_value)),
-                    )
-                )
-
-    if status:
-        stmt = stmt.where(models.Task.status == status)
-    if priority:
-        stmt = stmt.where(models.Task.priority == priority)
-    if assignee_id:
-        stmt = stmt.where(models.Task.assigned_to_id == assignee_id)
-    if team:
-        team_value = team.strip()
-        if team_value:
-            stmt = stmt.where(models.Task.team.ilike(team_value))
-    if tag:
-        tag_value = tag.strip()
-        if tag_value:
-            stmt = stmt.where(models.Task.tags.contains([tag_value]))
-
-    due_range = _parse_date_filter(due_date)
-    if due_range:
-        stmt = stmt.where(models.Task.due_at.between(due_range[0], due_range[1]))
-    created_range = _parse_date_filter(created_date)
-    if created_range:
-        stmt = stmt.where(models.Task.created_at.between(created_range[0], created_range[1]))
-
-    if quick_filter == "createdByMe":
-        stmt = stmt.where(models.Task.created_by_id == current_user.id)
-    elif quick_filter == "myTasks":
-        stmt = stmt.where(models.Task.assigned_to_id == current_user.id)
-    elif quick_filter == "overdue":
-        now = datetime.utcnow()
-        stmt = stmt.where(
-            models.Task.due_at.is_not(None),
-            models.Task.due_at < now,
-            ~models.Task.status.in_(COMPLETED_STATUSES),
-        )
-    elif quick_filter == "completed":
-        stmt = stmt.where(models.Task.status.in_(COMPLETED_STATUSES))
-
-    if sort_by == "dueAt":
-        order_column = models.Task.due_at
-    elif sort_by == "priority":
-        order_column = _priority_sort_expression()
-    elif sort_by == "status":
-        order_column = _status_sort_expression()
-    elif sort_by == "assignee":
-        stmt = stmt.join(models.User, models.Task.assigned_to_id == models.User.id, isouter=True)
-        order_column = models.User.name
-    elif sort_by == "lastUpdated":
-        order_column = models.Task.updated_at
-    elif sort_by == "title":
-        order_column = models.Task.title
-    else:
-        order_column = models.Task.created_at
+    stmt = _apply_task_filters(
+        _lean_task_stmt(),
+        db,
+        current_user,
+        search=search,
+        status_filter=status,
+        priority=priority,
+        assignee_id=assignee_id,
+        team=team,
+        tag=tag,
+        due_date=due_date,
+        created_date=created_date,
+        quick_filter=quick_filter,
+    )
+    stmt, order_column = _resolve_sort_column(stmt, sort_by)
 
     if sort_order == "asc":
         stmt = stmt.order_by(order_column.asc().nullslast())
@@ -848,13 +940,25 @@ def list_tasks_page(
     ).all()
     status_counts = {row[0].value if hasattr(row[0], "value") else str(row[0]): row[1] for row in status_rows}
     total_pages = max(1, (total + page_size - 1) // page_size)
-    tasks = (
-        db.execute(base_stmt.offset((page - 1) * page_size).limit(page_size))
-        .unique()
-        .scalars()
-        .all()
-    )
-    serialized = _serialize_task_list_items(tasks)
+
+    page_stmt = base_stmt
+    if cursor and sort_by in {"created_at", "lastUpdated", "dueAt"}:
+        cursor_value, _, cursor_id = cursor.partition("|")
+        cursor_dt = datetime.fromisoformat(cursor_value) if cursor_value else None
+        cursor_column = models.Task.created_at if sort_by == "created_at" else models.Task.updated_at if sort_by == "lastUpdated" else models.Task.due_at
+        if cursor_dt:
+            if sort_order == "asc":
+                page_stmt = page_stmt.where(or_(cursor_column > cursor_dt, (cursor_column == cursor_dt) & (models.Task.id > cursor_id)))
+            else:
+                page_stmt = page_stmt.where(or_(cursor_column < cursor_dt, (cursor_column == cursor_dt) & (models.Task.id < cursor_id)))
+    else:
+        page_stmt = page_stmt.offset((page - 1) * page_size)
+
+    tasks = db.execute(page_stmt.limit(page_size + 1)).scalars().all()
+    has_more = len(tasks) > page_size
+    visible_tasks = tasks[:page_size]
+    serialized = _serialize_task_card_items(visible_tasks)
+    next_cursor = _encode_task_cursor(visible_tasks[-1], sort_by) if has_more and visible_tasks else None
     response_payload = schemas.TaskListResponse(
         items=serialized,
         page=page,
@@ -862,12 +966,15 @@ def list_tasks_page(
         total=total,
         total_pages=total_pages,
         status_counts=status_counts,
+        next_cursor=next_cursor,
+        has_more=has_more,
     )
     set_cached_json(
         cache_key,
         response_payload.model_dump(mode="json"),
         ttl_seconds=settings.task_list_cache_ttl_seconds,
     )
+    _log_slow_endpoint("tasks.page", started_at)
     return response_payload
 
 
@@ -888,6 +995,7 @@ def list_tasks_kanban(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ) -> schemas.TaskKanbanResponse:
+    started_at = perf_time.perf_counter()
     tenant_id = str(current_user.tenant_id or settings.default_tenant_id)
     cache_params = {
         "page_size": page_size,
@@ -905,60 +1013,19 @@ def list_tasks_kanban(
     if cached_payload is not None:
         return schemas.TaskKanbanResponse.model_validate(cached_payload)
 
-    base_stmt = _task_query().order_by(None)
-    base_stmt = _apply_task_visibility(base_stmt, current_user)
-
-    if search:
-        search_value = search.strip()
-        if search_value:
-            if db.bind and db.bind.dialect.name == "postgresql":
-                base_stmt = base_stmt.where(
-                    models.Task.search_vector.op("@@")(
-                        func.websearch_to_tsquery("english", search_value)
-                    )
-                )
-            else:
-                like_value = f"%{search_value}%"
-                base_stmt = base_stmt.where(
-                    or_(
-                        models.Task.title.ilike(like_value),
-                        models.Task.description.ilike(like_value),
-                        models.Task.team.ilike(like_value),
-                        models.Task.assignee.has(models.User.name.ilike(like_value)),
-                    )
-                )
-    if priority:
-        base_stmt = base_stmt.where(models.Task.priority == priority)
-    if assignee_id:
-        base_stmt = base_stmt.where(models.Task.assigned_to_id == assignee_id)
-    if team:
-        team_value = team.strip()
-        if team_value:
-            base_stmt = base_stmt.where(models.Task.team.ilike(team_value))
-    if tag:
-        tag_value = tag.strip()
-        if tag_value:
-            base_stmt = base_stmt.where(models.Task.tags.contains([tag_value]))
-    due_range = _parse_date_filter(due_date)
-    if due_range:
-        base_stmt = base_stmt.where(models.Task.due_at.between(due_range[0], due_range[1]))
-    created_range = _parse_date_filter(created_date)
-    if created_range:
-        base_stmt = base_stmt.where(models.Task.created_at.between(created_range[0], created_range[1]))
-
-    if quick_filter == "createdByMe":
-        base_stmt = base_stmt.where(models.Task.created_by_id == current_user.id)
-    elif quick_filter == "myTasks":
-        base_stmt = base_stmt.where(models.Task.assigned_to_id == current_user.id)
-    elif quick_filter == "overdue":
-        now = datetime.utcnow()
-        base_stmt = base_stmt.where(
-            models.Task.due_at.is_not(None),
-            models.Task.due_at < now,
-            ~models.Task.status.in_(COMPLETED_STATUSES),
-        )
-    elif quick_filter == "completed":
-        base_stmt = base_stmt.where(models.Task.status.in_(COMPLETED_STATUSES))
+    base_stmt = _apply_task_filters(
+        _lean_task_stmt(),
+        db,
+        current_user,
+        search=search,
+        priority=priority,
+        assignee_id=assignee_id,
+        team=team,
+        tag=tag,
+        due_date=due_date,
+        created_date=created_date,
+        quick_filter=quick_filter,
+    )
 
     columns = db.execute(
         select(models.KanbanColumn).order_by(models.KanbanColumn.order)
@@ -986,7 +1053,7 @@ def list_tasks_kanban(
                 title=column.title,
                 order=column.order,
                 count=counts.get(status_value, 0),
-                items=_serialize_task_list_items(tasks),
+                items=_serialize_task_card_items(tasks),
             )
         )
 
@@ -996,7 +1063,160 @@ def list_tasks_kanban(
         response_payload.model_dump(mode="json"),
         ttl_seconds=settings.task_list_cache_ttl_seconds,
     )
+    _log_slow_endpoint("tasks.kanban", started_at)
     return response_payload
+
+
+def _parse_required_date(value: str, field_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {field_name}")
+
+
+def _date_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
+    return datetime.combine(start_date, time.min), datetime.combine(end_date, time.max)
+
+
+@router.get("/calendar/summary", response_model=schemas.TaskCalendarSummaryResponse)
+def get_calendar_summary(
+    start_date: str = Query(..., description="Visible range start date, YYYY-MM-DD."),
+    end_date: str = Query(..., description="Visible range end date, YYYY-MM-DD."),
+    search: Optional[str] = Query(default=None),
+    status_filter: Optional[models.TaskStatusEnum] = Query(default=None, alias="status"),
+    priority: Optional[models.TaskPriorityEnum] = Query(default=None),
+    assignee_id: Optional[str] = Query(default=None),
+    team: Optional[str] = Query(default=None),
+    tag: Optional[str] = Query(default=None),
+    due_date: Optional[str] = Query(default=None),
+    created_date: Optional[str] = Query(default=None),
+    quick_filter: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+) -> schemas.TaskCalendarSummaryResponse:
+    started_at = perf_time.perf_counter()
+    start = _parse_required_date(start_date, "start_date")
+    end = _parse_required_date(end_date, "end_date")
+    if start > end:
+        start, end = end, start
+    range_start, range_end = _date_bounds(start, end)
+    tenant_id = str(current_user.tenant_id or settings.default_tenant_id)
+    cache_params = {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "search": search,
+        "status": status_filter.value if status_filter else None,
+        "priority": priority.value if priority else None,
+        "assignee_id": assignee_id,
+        "team": team,
+        "tag": tag,
+        "due_date": due_date,
+        "created_date": created_date,
+        "quick_filter": quick_filter,
+    }
+    cache_key = _calendar_cache_key(tenant_id=tenant_id, user_id=str(current_user.id), params=cache_params)
+    cached_payload = get_cached_json(cache_key)
+    if cached_payload is not None:
+        return schemas.TaskCalendarSummaryResponse.model_validate(cached_payload)
+
+    stmt = _apply_task_filters(
+        _lean_task_stmt(),
+        db,
+        current_user,
+        search=search,
+        status_filter=status_filter,
+        priority=priority,
+        assignee_id=assignee_id,
+        team=team,
+        tag=tag,
+        due_date=due_date,
+        created_date=created_date,
+        quick_filter=quick_filter,
+    ).where(models.Task.due_at.between(range_start, range_end))
+    filtered = stmt.order_by(None).subquery()
+    day_expr = func.date(filtered.c.due_at)
+    now = datetime.utcnow()
+    rows = db.execute(
+        select(
+            day_expr.label("day"),
+            func.count(filtered.c.id).label("total"),
+            func.sum(case((filtered.c.status.in_(COMPLETED_STATUSES), 1), else_=0)).label("completed"),
+            func.sum(case(((filtered.c.due_at < now) & (~filtered.c.status.in_(COMPLETED_STATUSES)), 1), else_=0)).label("overdue"),
+            func.sum(case((filtered.c.priority == models.TaskPriorityEnum.URGENT, 1), else_=0)).label("urgent"),
+            func.sum(case((filtered.c.priority == models.TaskPriorityEnum.HIGH, 1), else_=0)).label("high"),
+            func.sum(case((filtered.c.priority == models.TaskPriorityEnum.MEDIUM, 1), else_=0)).label("medium"),
+            func.sum(case((filtered.c.priority == models.TaskPriorityEnum.LOW, 1), else_=0)).label("low"),
+            func.sum(case(((filtered.c.due_at >= now) & (filtered.c.due_at <= now + timedelta(days=3)) & (~filtered.c.status.in_(COMPLETED_STATUSES)), 1), else_=0)).label("due_soon"),
+        )
+        .select_from(filtered)
+        .group_by(day_expr)
+    ).all()
+    row_by_day: dict[str, Any] = {str(row.day): row for row in rows}
+    days: list[schemas.TaskCalendarDaySummary] = []
+    iterator = start
+    while iterator <= end:
+        key = iterator.isoformat()
+        row = row_by_day.get(key)
+        days.append(
+            schemas.TaskCalendarDaySummary(
+                date=iterator,
+                total=int(row.total or 0) if row else 0,
+                completed=int(row.completed or 0) if row else 0,
+                overdue=int(row.overdue or 0) if row else 0,
+                urgent=int(row.urgent or 0) if row else 0,
+                high=int(row.high or 0) if row else 0,
+                medium=int(row.medium or 0) if row else 0,
+                low=int(row.low or 0) if row else 0,
+                due_soon=int(row.due_soon or 0) if row else 0,
+            )
+        )
+        iterator = iterator + timedelta(days=1)
+    response_payload = schemas.TaskCalendarSummaryResponse(start_date=start, end_date=end, days=days)
+    set_cached_json(cache_key, response_payload.model_dump(mode="json"), ttl_seconds=45)
+    _log_slow_endpoint("tasks.calendar.summary", started_at)
+    return response_payload
+
+
+@router.get("/calendar/tasks", response_model=List[schemas.TaskRead])
+def get_calendar_tasks(
+    start_date: str = Query(...),
+    end_date: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    status_filter: Optional[models.TaskStatusEnum] = Query(default=None, alias="status"),
+    priority: Optional[models.TaskPriorityEnum] = Query(default=None),
+    assignee_id: Optional[str] = Query(default=None),
+    team: Optional[str] = Query(default=None),
+    tag: Optional[str] = Query(default=None),
+    due_date: Optional[str] = Query(default=None),
+    created_date: Optional[str] = Query(default=None),
+    quick_filter: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+) -> List[schemas.TaskRead]:
+    started_at = perf_time.perf_counter()
+    start = _parse_required_date(start_date, "start_date")
+    end = _parse_required_date(end_date or start_date, "end_date")
+    if start > end:
+        start, end = end, start
+    range_start, range_end = _date_bounds(start, end)
+    stmt = _apply_task_filters(
+        _task_query().order_by(None),
+        db,
+        current_user,
+        search=search,
+        status_filter=status_filter,
+        priority=priority,
+        assignee_id=assignee_id,
+        team=team,
+        tag=tag,
+        due_date=due_date,
+        created_date=created_date,
+        quick_filter=quick_filter,
+    ).where(models.Task.due_at.between(range_start, range_end)).order_by(models.Task.due_at.asc(), models.Task.created_at.desc())
+    tasks = db.execute(stmt).unique().scalars().all()
+    status_title_map = _status_title_map(db)
+    _log_slow_endpoint("tasks.calendar.tasks", started_at)
+    return _serialize_tasks(tasks, status_title_map)
 
 
 @router.get("/{task_id}/summary", response_model=schemas.TaskSummaryResponse)

@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
-import { User } from '../../types';
 import { getConversationTitle } from './utils/conversation';
 import { useChat } from './hooks/useChat';
 import ChatHeader from './components/ChatHeader';
+import ChatErrorBoundary from './components/ChatErrorBoundary';
 import ChatModal from './components/ChatModal';
 import ChatSearchModal from './components/ChatSearchModal';
 import ChatSidebar from './components/ChatSidebar';
@@ -21,20 +20,15 @@ const ChatApp: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { conversationId } = useParams();
-  const [users, setUsers] = useState<User[]>([]);
   const [replyTo, setReplyTo] = useState<ReturnType<typeof useChat>['messages'][number] | null>(null);
   const [creationMode, setCreationMode] = useState<'DIRECT' | 'GROUP' | 'SPACE' | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
   const [pins, setPins] = useState<ChatPinnedMessage[]>([]);
   const [pinsLoading, setPinsLoading] = useState(false);
   const chat = useChat(conversationId ?? null);
-
-  useEffect(() => {
-    api.getUsers().then(setUsers).catch(() => setUsers([]));
-  }, []);
 
   useEffect(() => {
     if (chat.selectedConversationId && chat.selectedConversationId !== conversationId) {
@@ -80,13 +74,19 @@ const ChatApp: React.FC = () => {
     setSidebarOpen(false);
   };
 
+  const selectedOtherMember = useMemo(() => {
+    return chat.selectedConversation?.members.find((member) => member.userId !== user?.id) ?? null;
+  }, [chat.selectedConversation?.members, user?.id]);
+
   const selectedPresence = useMemo(() => {
     const other = chat.selectedConversation?.members.find((member) => member.userId !== user?.id);
     return other ? chat.presenceByUserId[other.userId] ?? 'OFFLINE' : 'OFFLINE';
   }, [chat.presenceByUserId, chat.selectedConversation?.members, user?.id]);
 
   const selectedTitle = chat.selectedConversation ? getConversationTitle(chat.selectedConversation, user) : 'this chat';
-  const canManageSelected = Boolean(chat.selectedConversation?.members.some((member) => member.userId === user?.id && ['OWNER', 'ADMIN'].includes(member.role)));
+  const currentMember = chat.selectedConversation?.members.find((member) => member.userId === user?.id) ?? null;
+  const canManageSelected = Boolean(currentMember && ['OWNER', 'ADMIN'].includes(currentMember.role));
+  const selectedDirectInactive = Boolean(chat.selectedConversation?.type === 'DIRECT' && selectedOtherMember?.accountStatus === 'DEACTIVATED');
 
   const refreshPins = async () => {
     if (!chat.selectedConversationId) return;
@@ -109,42 +109,47 @@ const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] bg-[#F8FAFC] p-2 sm:p-4">
-      <div className="mx-auto flex h-[calc(100vh-6rem)] min-h-[620px] max-w-[1500px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
-        <div className={`${sidebarOpen ? 'fixed inset-0 z-40 block bg-slate-950/30 p-3' : 'hidden'} lg:static lg:block lg:bg-transparent lg:p-0`}>
-          <div className="h-full overflow-hidden rounded-[24px] lg:rounded-none">
+    <div className="chat-workspace">
+      <div className="chat-shell">
+        <div className={`${sidebarOpen ? 'fixed inset-0 z-40 block bg-black/60 p-3 backdrop-blur-sm' : 'hidden'} lg:static lg:block lg:bg-transparent lg:p-0 lg:backdrop-blur-0`}>
+          <div className="h-full overflow-hidden rounded-2xl lg:rounded-none">
             <ChatSidebar
               currentUser={user}
               conversations={chat.conversations}
+              directoryUsers={chat.directoryUsers}
               selectedConversationId={chat.selectedConversationId}
-              loading={chat.loadingConversations}
+              loading={chat.loadingConversations || chat.loadingDirectory}
               presenceByUserId={chat.presenceByUserId}
-              onSelect={selectConversation}
+              onSelectConversation={selectConversation}
+              onSelectUser={(userId) => {
+                void chat.startDirect(userId);
+                setSidebarOpen(false);
+              }}
               onOpenCreate={setCreationMode}
               onOpenSearch={() => setSearchOpen(true)}
             />
           </div>
         </div>
 
-        <main className="flex min-w-0 flex-1 flex-col bg-white">
-          <div className={`border-b px-4 py-2 text-center text-xs font-bold transition ${chat.realtimeConnected ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
-            {chat.realtimeConnected ? 'Connected' : 'Reconnecting...'}
-          </div>
+        <main className="chat-main">
           <ChatHeader
             conversation={chat.selectedConversation}
             currentUser={user}
             presence={selectedPresence}
             detailsOpen={detailsOpen}
+            favorite={Boolean(currentMember?.isPinned)}
             onOpenSidebar={() => setSidebarOpen(true)}
-            onOpenSearch={() => setSearchOpen(true)}
-            onOpenPins={() => setPinsOpen(true)}
             onToggleDetails={() => setDetailsOpen((value) => !value)}
+            onToggleFavorite={() => {
+              if (!chat.selectedConversationId || !user?.id) return;
+              void chat.toggleFavorite(chat.selectedConversationId, user.id, !currentMember?.isPinned);
+            }}
           />
           {chat.error && (
-            <div className="border-b border-rose-200 bg-rose-50 px-5 py-2 text-sm font-semibold text-rose-700">{chat.error}</div>
+            <div className="chat-error-banner">{chat.error}</div>
           )}
           {chat.selectedConversation ? (
-            <>
+            <ChatErrorBoundary resetKey={chat.selectedConversationId}>
               <MessageList
                 conversation={chat.selectedConversation}
                 messages={chat.messages}
@@ -162,15 +167,16 @@ const ChatApp: React.FC = () => {
                 onPin={(message) => void pinMessage(message)}
               />
               <MessageComposer
-                disabled={!chat.selectedConversation}
+                disabled={!chat.selectedConversation || selectedDirectInactive}
                 placeholder={`Message ${chat.selectedConversation.type === 'DIRECT' ? selectedTitle : `#${selectedTitle.toLowerCase().replace(/\s+/g, '-')}`}`}
+                disabledReason={selectedDirectInactive ? 'This user is no longer active. You can view previous messages but cannot send new messages.' : undefined}
                 replyTo={replyTo}
                 onCancelReply={() => setReplyTo(null)}
                 onSend={chat.sendMessage}
                 onTyping={chat.setTyping}
                 onUploadAttachment={(file, onProgress) => chat.uploadAttachment(chat.selectedConversationId!, file, onProgress)}
               />
-            </>
+            </ChatErrorBoundary>
           ) : (
             <EmptyChatState />
           )}
@@ -179,7 +185,7 @@ const ChatApp: React.FC = () => {
         <MemberPanel
           conversation={chat.selectedConversation}
           currentUser={user}
-          open={detailsOpen}
+          open={detailsOpen && Boolean(chat.selectedConversation)}
           presenceByUserId={chat.presenceByUserId}
           pinnedMessages={pins}
           onClose={() => setDetailsOpen(false)}
@@ -189,7 +195,7 @@ const ChatApp: React.FC = () => {
       <ChatModal
         open={Boolean(creationMode)}
         mode={creationMode ?? 'DIRECT'}
-        users={users}
+        users={chat.directoryUsers}
         currentUser={user}
         presenceByUserId={chat.presenceByUserId}
         onClose={() => setCreationMode(null)}

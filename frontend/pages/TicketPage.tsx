@@ -6,6 +6,7 @@ import api from '../services/api';
 import ApprovalModal from '../components/ApprovalModal';
 import CreateTicketModal from '../components/CreateTicketModal';
 import TicketDetailDrawer from '../components/Tickets/TicketDetailDrawer';
+import PageLoader from '../components/loading/PageLoader';
 import {
   Role,
   TaskApprovalStatus,
@@ -169,6 +170,10 @@ const TicketPage: React.FC = () => {
     return options;
   }, [tickets, userMap]);
 
+  if (loading && tickets.length === 0) {
+    return <PageLoader />;
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
@@ -270,11 +275,6 @@ const TicketPage: React.FC = () => {
 
       <div className="flex-1 overflow-hidden p-6">
         <div className="rounded-2xl border border-gray-200 bg-white/80 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          {loading && (
-            <div className="flex h-48 items-center justify-center text-sm text-gray-500">
-              Loading tickets...
-            </div>
-          )}
           {!loading && error && (
             <div className="flex h-48 flex-col items-center justify-center gap-2">
               <p className="text-sm font-semibold text-rose-600">

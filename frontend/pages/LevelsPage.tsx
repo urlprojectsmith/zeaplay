@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Level } from '../types';
 import CreateLevelModal from '../components/CreateLevelModal';
+import PageLoader from '../components/loading/PageLoader';
 
 const LevelsPage: React.FC = () => {
   const [levels, setLevels] = useState<Level[]>([]);
@@ -40,11 +41,7 @@ const LevelsPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

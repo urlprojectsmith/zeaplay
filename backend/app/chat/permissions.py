@@ -59,3 +59,10 @@ class ChatPermissionService:
         if len(users) != len(unique_ids):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="One or more users are invalid")
         return users
+
+    def validate_chat_eligible_users(self, user_ids: list[str], current_user: models.User) -> list[models.User]:
+        unique_ids = list(dict.fromkeys(user_ids))
+        users = self.members.list_chat_eligible_users_by_ids(unique_ids, current_user)
+        if len(users) != len(unique_ids):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="One or more users are inactive or invalid")
+        return users

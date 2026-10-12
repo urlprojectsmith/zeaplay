@@ -15,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import api from '../services/mockApi';
 import { withGeminiKey } from '../utils/geminiClient';
 import { formatDate } from '../utils';
+import PageLoader from '../components/loading/PageLoader';
 
 const StatCard: React.FC<{ title: string; value: number | string; delta?: string }> = ({ title, value, delta }) => (
     <div className="bg-surface p-6 rounded-lg border border-border-color">
@@ -701,7 +702,7 @@ const fetchData = useCallback(async () => {
     };
     
     if (loadingData) {
-        return <div className="text-center p-8">Loading reports...</div>;
+        return <PageLoader />;
     }
 
     return (

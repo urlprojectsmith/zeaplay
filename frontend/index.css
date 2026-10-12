@@ -1103,6 +1103,10 @@ select option {
 .dark {
   --header-bg: linear-gradient(to right, #0b1220, #0e1628, #05070d);
   --header-border: rgba(56, 189, 248, 0.35);
+  --progress-track: rgba(2, 6, 23, 0.68);
+  --progress-gradient: linear-gradient(90deg, #22d3ee 0%, #3b82f6 55%, #8b5cf6 100%);
+  --progress-glow: 0 0 8px rgba(34, 211, 238, 0.65), 0 0 16px rgba(59, 130, 246, 0.26);
+  --progress-height: 3px;
   --header-text: var(--color-text-primary);
   --header-control-bg: rgba(2, 6, 23, 0.60);
   --header-control-border: rgba(56, 189, 248, 0.25);
@@ -1145,6 +1149,10 @@ select option {
 .theme-colorful {
   --header-bg: linear-gradient(105deg, #6d28d9 0%, #7c3aed 20%, #2563eb 48%, #0891b2 72%, #9333ea 100%);
   --header-border: rgba(125, 211, 252, 0.55);
+  --progress-track: rgba(255, 255, 255, 0.18);
+  --progress-gradient: linear-gradient(90deg, #ec4899 0%, #8b5cf6 30%, #3b82f6 65%, #06b6d4 100%);
+  --progress-glow: 0 0 8px rgba(236, 72, 153, 0.42), 0 0 16px rgba(6, 182, 212, 0.34);
+  --progress-height: 3px;
   --header-text: #ffffff;
   --header-control-bg: linear-gradient(135deg, rgba(30, 27, 75, 0.70), rgba(88, 28, 135, 0.58));
   --header-control-border: rgba(125, 211, 252, 0.44);
@@ -1208,6 +1216,83 @@ html:not(.dark):not(.theme-colorful) .layout-main-surface,
   border-color: var(--header-border);
   color: var(--header-text);
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.16), 0 1px 0 var(--header-border);
+}
+
+html:not(.dark):not(.theme-colorful) {
+  --progress-track: rgba(224, 242, 254, 0.84);
+  --progress-gradient: linear-gradient(90deg, #06b6d4, #3b82f6, #8b5cf6);
+  --progress-glow: 0 0 6px rgba(59, 130, 246, 0.30);
+  --progress-height: 3px;
+}
+
+.global-progress {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  z-index: 20;
+  height: var(--progress-height, 3px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.global-progress-visible {
+  opacity: 1;
+}
+
+.global-progress-track {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--progress-track);
+}
+
+.global-progress-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: var(--progress-gradient);
+  box-shadow: var(--progress-glow);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.global-progress-indeterminate.global-progress-visible .global-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 22%;
+  right: -8%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.62), transparent);
+  animation: global-progress-highlight 1.25s ease-in-out infinite;
+}
+
+@keyframes global-progress-highlight {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(130%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-progress,
+  .global-progress-fill {
+    transition-duration: 1ms;
+  }
+
+  .global-progress-indeterminate.global-progress-visible .global-progress-fill::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .zea-app-header-dark {
@@ -2433,5 +2518,742 @@ html:not(.theme-colorful) .kanban-board-dark-theme > * {
 :is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme,
 :is(.theme-colorful, .colorful, [data-theme="colorful"]) .kanban-board-colorful-theme * {
   color: inherit;
+}
+
+/* Teams-inspired chat surface */
+.chat-workspace {
+  height: calc(100vh - 5rem);
+  min-height: calc(100vh - 5rem);
+  margin: -1.5rem;
+  overflow: hidden;
+  background: #111;
+  color: #f5f5f5;
+}
+
+.chat-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #191919;
+}
+
+.chat-sidebar {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  width: min(100vw - 1.5rem, 486px);
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid #2e2e2e;
+  background: linear-gradient(180deg, #242424 0%, #151515 100%);
+}
+
+@media (min-width: 1024px) {
+  .chat-sidebar {
+    width: 486px;
+  }
+}
+
+.chat-sidebar-header {
+  flex-shrink: 0;
+  padding: 1.5rem 0.75rem 0.75rem;
+  background: #242424;
+}
+
+.chat-sidebar-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: scroll;
+  padding: 0.5rem 0.75rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: #707070 transparent;
+}
+
+.chat-tab {
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  color: #d4d4d4;
+  font-size: 1rem;
+  line-height: 1.25rem;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.chat-tab:hover,
+.chat-tab-active {
+  background: #4a4a4a;
+  color: #fff;
+}
+
+.chat-icon-button,
+.chat-new-button,
+.chat-call-button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #747474;
+  border-radius: 999px;
+  color: #e5e5e5;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.chat-icon-button:hover {
+  background: #3a3a3a;
+  border-color: #a3a3a3;
+}
+
+.chat-new-button {
+  border-color: transparent;
+  background: #f5f5f5;
+  color: #181818;
+}
+
+.chat-new-button:hover {
+  background: #d9d9d9;
+}
+
+.chat-call-button {
+  border-color: transparent;
+  background: #108760;
+  color: #fff;
+}
+
+.chat-call-button:hover {
+  background: #0f9f70;
+}
+
+.chat-recommended {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.7rem 0.25rem;
+}
+
+.chat-section-title {
+  padding: 0.6rem 0.4rem 0.35rem;
+  color: #c8c8c8;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.chat-section-title::before {
+  content: "v";
+  margin-right: 0.5rem;
+  color: #d4d4d4;
+}
+
+.chat-nav-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.875rem;
+  border-radius: 999px;
+  padding: 0.65rem 0.75rem;
+  color: #d4d4d4;
+  text-align: left;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.chat-nav-row:hover,
+.chat-nav-row-active {
+  background: #3a3a3a;
+  color: #fff;
+}
+
+.chat-avatar {
+  position: relative;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #5d5d5d;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.chat-presence-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid #242424;
+  border-radius: 999px;
+}
+
+.chat-unread-dot {
+  min-width: 1.25rem;
+  border-radius: 999px;
+  background: #0ea5e9;
+  padding: 0.1rem 0.4rem;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.chat-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 58% -18%, rgba(255, 255, 255, 0.05), transparent 34%),
+    linear-gradient(180deg, #222 0%, #151515 28%, #101010 100%);
+}
+
+.chat-room-header {
+  display: flex;
+  min-height: 5.5rem;
+  align-items: flex-start;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(35, 35, 35, 0.8);
+  padding: 1.25rem 1.5rem 0.85rem;
+}
+
+.chat-header-tab {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  color: #d4d4d4;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.chat-header-tab:hover,
+.chat-header-tab-active {
+  background: #555;
+  color: #fff;
+}
+
+.chat-error-banner {
+  border-bottom: 1px solid rgba(244, 63, 94, 0.35);
+  background: rgba(127, 29, 29, 0.55);
+  padding: 0.5rem 1.25rem;
+  color: #fecdd3;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.chat-message-list {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem 1.5rem 1.5rem;
+  background: linear-gradient(180deg, rgba(34, 34, 34, 0.78), #101010 38%);
+  scrollbar-color: #707070 transparent;
+}
+
+.chat-composer {
+  border-top: 1px solid #00a8d8;
+  background: #111;
+  padding: 0.7rem 1.5rem 1.2rem;
+}
+
+.chat-composer-box {
+  position: relative;
+  border-radius: 0;
+  background: #111;
+}
+
+.chat-composer-tool {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  color: #e5e5e5;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.chat-composer-tool:hover {
+  background: #252525;
+  color: #fff;
+}
+
+/* Premium Calendar UI */
+.calendar-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 4rem);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  color: var(--calendar-text);
+}
+
+.calendar-page::before {
+  content: "";
+  position: fixed;
+  inset: 4rem 0 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--calendar-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--calendar-grid-line) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.66), transparent 82%);
+}
+
+.calendar-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-page-dark {
+  --calendar-text: #f8fbff;
+  --calendar-muted: rgba(203, 213, 225, 0.82);
+  --calendar-grid-line: rgba(125, 211, 252, 0.045);
+  --calendar-panel-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.76), rgba(17, 24, 39, 0.60));
+  --calendar-panel-border: rgba(125, 211, 252, 0.16);
+  --calendar-panel-shadow: 0 24px 64px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --calendar-card-bg: linear-gradient(145deg, rgba(15, 23, 42, 0.78), rgba(30, 41, 59, 0.56));
+  --calendar-card-border: rgba(125, 211, 252, 0.18);
+  --calendar-card-shadow: 0 18px 48px rgba(2, 6, 23, 0.48), 0 0 24px rgba(34, 211, 238, 0.08);
+  --calendar-glow: rgba(34, 211, 238, 0.24);
+  --calendar-badge-bg: rgba(255, 255, 255, 0.11);
+  --calendar-badge-text: #f8fbff;
+  background:
+    radial-gradient(circle at 10% 5%, rgba(34, 211, 238, 0.16), transparent 30%),
+    radial-gradient(circle at 92% 8%, rgba(124, 58, 237, 0.15), transparent 32%),
+    radial-gradient(circle at 55% 100%, rgba(14, 165, 233, 0.10), transparent 34%),
+    linear-gradient(135deg, #030712 0%, #08111f 44%, #0f172a 100%);
+}
+
+.calendar-page-light {
+  --calendar-text: #0f172a;
+  --calendar-muted: #475569;
+  --calendar-grid-line: rgba(59, 130, 246, 0.06);
+  --calendar-panel-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(239, 246, 255, 0.70));
+  --calendar-panel-border: rgba(59, 130, 246, 0.16);
+  --calendar-panel-shadow: 0 20px 54px rgba(59, 130, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  --calendar-card-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(239, 246, 255, 0.68));
+  --calendar-card-border: rgba(14, 165, 233, 0.18);
+  --calendar-card-shadow: 0 16px 42px rgba(59, 130, 246, 0.12), 0 0 18px rgba(34, 211, 238, 0.07);
+  --calendar-glow: rgba(14, 165, 233, 0.18);
+  --calendar-badge-bg: rgba(255, 255, 255, 0.84);
+  --calendar-badge-text: #0f172a;
+  background:
+    radial-gradient(circle at 12% 7%, rgba(125, 211, 252, 0.28), transparent 30%),
+    radial-gradient(circle at 85% 2%, rgba(147, 197, 253, 0.24), transparent 32%),
+    radial-gradient(circle at 54% 100%, rgba(45, 212, 191, 0.12), transparent 34%),
+    linear-gradient(135deg, #f8fbff 0%, #f4f8ff 46%, #edf6ff 100%);
+}
+
+.calendar-page-colorful {
+  --calendar-text: #102033;
+  --calendar-muted: #334155;
+  --calendar-grid-line: rgba(124, 58, 237, 0.055);
+  --calendar-panel-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(236, 254, 255, 0.62), rgba(250, 232, 255, 0.58));
+  --calendar-panel-border: rgba(124, 58, 237, 0.18);
+  --calendar-panel-shadow: 0 22px 58px rgba(99, 102, 241, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  --calendar-card-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(236, 254, 255, 0.54), rgba(253, 242, 248, 0.56));
+  --calendar-card-border: rgba(124, 58, 237, 0.18);
+  --calendar-card-shadow: 0 16px 44px rgba(99, 102, 241, 0.14), 0 0 20px rgba(217, 70, 239, 0.08);
+  --calendar-glow: rgba(124, 58, 237, 0.22);
+  --calendar-badge-bg: rgba(255, 255, 255, 0.88);
+  --calendar-badge-text: #102033;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(34, 211, 238, 0.28), transparent 30%),
+    radial-gradient(circle at 88% 6%, rgba(217, 70, 239, 0.18), transparent 30%),
+    radial-gradient(circle at 74% 92%, rgba(244, 114, 182, 0.14), transparent 32%),
+    linear-gradient(135deg, #ecfeff 0%, #f5f0ff 44%, #fff7ed 100%);
+}
+
+.calendar-glass-panel {
+  background: var(--calendar-panel-bg);
+  border-color: var(--calendar-panel-border);
+  box-shadow: var(--calendar-panel-shadow);
+  backdrop-filter: blur(22px);
+  color: var(--calendar-text);
+}
+
+.calendar-field {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--calendar-panel-border);
+  color: var(--calendar-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.calendar-field-dark {
+  background: rgba(15, 23, 42, 0.66);
+  color: #f8fbff;
+}
+
+.calendar-field::placeholder {
+  color: var(--calendar-muted);
+}
+
+.calendar-control-button {
+  border: 1px solid var(--calendar-panel-border);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--calendar-text);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.calendar-control-button-dark {
+  background: rgba(15, 23, 42, 0.58);
+  color: rgba(248, 251, 255, 0.82);
+}
+
+.calendar-control-button:hover {
+  border-color: color-mix(in srgb, var(--calendar-glow) 70%, var(--calendar-panel-border));
+  box-shadow: 0 12px 28px var(--calendar-glow);
+}
+
+.calendar-control-button-active {
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  background: linear-gradient(135deg, #67e8f9, #818cf8);
+  color: #07111f;
+  box-shadow: 0 14px 32px rgba(34, 211, 238, 0.24);
+}
+
+.calendar-weekday {
+  border-radius: 1rem;
+  border: 1px solid var(--calendar-panel-border);
+  padding: 0.75rem 0;
+  text-align: center;
+  background: var(--calendar-panel-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.calendar-day-card {
+  --state-border: var(--calendar-card-border);
+  --state-glow: var(--calendar-glow);
+  --state-tint: rgba(34, 211, 238, 0.06);
+  background: var(--calendar-card-bg);
+  border: 1px solid var(--state-border);
+  box-shadow: var(--calendar-card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: var(--calendar-text);
+  backdrop-filter: blur(18px);
+  transition: transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease, background 240ms ease;
+}
+
+.calendar-day-card::before,
+.calendar-day-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.calendar-day-card::before {
+  border: 1px solid color-mix(in srgb, var(--state-border) 76%, transparent);
+  box-shadow: 0 0 16px var(--state-glow), inset 0 0 18px rgba(255, 255, 255, 0.04);
+  opacity: 0.72;
+  transition: opacity 240ms ease, box-shadow 240ms ease;
+}
+
+.calendar-day-card::after {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), transparent 38%),
+    radial-gradient(circle at 92% 8%, var(--state-tint), transparent 34%);
+  opacity: 0.9;
+}
+
+.calendar-day-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+.calendar-day-card:hover,
+.calendar-day-card:focus-visible {
+  transform: translateY(-2px) scale(1.008);
+  border-color: color-mix(in srgb, var(--state-border) 82%, #ffffff 18%);
+  box-shadow: var(--calendar-card-shadow), 0 0 32px var(--state-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  outline: none;
+}
+
+.calendar-day-card:hover::before,
+.calendar-day-card:focus-visible::before {
+  opacity: 1;
+  box-shadow: 0 0 22px var(--state-glow), 0 0 34px color-mix(in srgb, var(--state-glow) 64%, transparent), inset 0 0 20px rgba(255, 255, 255, 0.06);
+}
+
+.calendar-day-card[data-outside-month="true"] {
+  opacity: 0.56;
+}
+
+.calendar-day-card[data-date-state="overdue"] {
+  --state-border: rgba(244, 63, 94, 0.56);
+  --state-glow: rgba(244, 63, 94, 0.28);
+  --state-tint: rgba(244, 63, 94, 0.14);
+}
+
+.calendar-day-card[data-date-state="urgent"] {
+  --state-border: rgba(249, 115, 22, 0.54);
+  --state-glow: rgba(249, 115, 22, 0.26);
+  --state-tint: rgba(249, 115, 22, 0.14);
+}
+
+.calendar-day-card[data-date-state="warning"] {
+  --state-border: rgba(245, 158, 11, 0.50);
+  --state-glow: rgba(245, 158, 11, 0.24);
+  --state-tint: rgba(245, 158, 11, 0.14);
+}
+
+.calendar-day-card[data-date-state="completed"] {
+  --state-border: rgba(16, 185, 129, 0.46);
+  --state-glow: rgba(16, 185, 129, 0.22);
+  --state-tint: rgba(16, 185, 129, 0.12);
+}
+
+.calendar-day-card[data-date-state="today"] {
+  --state-border: rgba(34, 211, 238, 0.62);
+  --state-glow: rgba(34, 211, 238, 0.30);
+  --state-tint: rgba(34, 211, 238, 0.14);
+}
+
+.calendar-day-card[data-today="true"] {
+  outline: 1px solid rgba(34, 211, 238, 0.42);
+  outline-offset: 2px;
+}
+
+.calendar-day-card[data-date-state="empty"] {
+  --state-glow: rgba(148, 163, 184, 0.10);
+  --state-tint: rgba(148, 163, 184, 0.05);
+}
+
+.calendar-day-selected {
+  box-shadow: var(--calendar-card-shadow), 0 0 0 2px rgba(34, 211, 238, 0.62), 0 0 34px rgba(34, 211, 238, 0.28) !important;
+}
+
+.calendar-day-conflict {
+  box-shadow: var(--calendar-card-shadow), 0 0 0 2px rgba(244, 63, 94, 0.60), 0 0 30px rgba(244, 63, 94, 0.24) !important;
+}
+
+.calendar-date-badge {
+  margin-left: auto;
+  display: flex;
+  height: 1.9rem;
+  width: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--state-border) 58%, transparent);
+  background: var(--calendar-badge-bg);
+  color: var(--calendar-badge-text);
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10);
+}
+
+.calendar-date-badge-today {
+  border-color: rgba(34, 211, 238, 0.78);
+  background: linear-gradient(135deg, #67e8f9, #60a5fa 52%, #a78bfa);
+  color: #06111f;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18), 0 0 24px rgba(34, 211, 238, 0.38);
+}
+
+.calendar-count-chip {
+  background: rgba(34, 211, 238, 0.14);
+  color: color-mix(in srgb, var(--calendar-text) 84%, #0891b2 16%);
+  border: 1px solid rgba(34, 211, 238, 0.20);
+}
+
+.calendar-hot-chip {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fecdd3;
+  border: 1px solid rgba(244, 63, 94, 0.22);
+}
+
+.calendar-page-light .calendar-hot-chip,
+.calendar-page-colorful .calendar-hot-chip {
+  color: #9f1239;
+}
+
+.calendar-empty-summary {
+  border-color: color-mix(in srgb, var(--calendar-panel-border) 70%, transparent);
+  color: var(--calendar-muted);
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.calendar-priority-chip,
+.calendar-status-chip {
+  --chip-color: #38bdf8;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--chip-color) 46%, transparent);
+  background: color-mix(in srgb, var(--chip-color) 17%, rgba(255, 255, 255, 0.10));
+  color: var(--calendar-text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 0 rgba(0, 0, 0, 0);
+  transition: transform 220ms ease, box-shadow 260ms ease, border-color 260ms ease, background 260ms ease;
+}
+
+.calendar-priority-chip::before,
+.calendar-priority-chip::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.calendar-priority-chip::before {
+  inset: -2px;
+  z-index: 0;
+  border-radius: inherit;
+  background: conic-gradient(from 90deg, transparent 0 24%, var(--chip-color) 34%, transparent 44% 70%, color-mix(in srgb, var(--chip-color) 70%, #ffffff) 78%, transparent 88%);
+}
+
+.calendar-priority-chip::after {
+  width: 120%;
+  height: 120%;
+  left: -10%;
+  top: -10%;
+  background:
+    radial-gradient(circle, var(--chip-color) 0 1px, transparent 2px) 12% 38% / 18px 18px,
+    radial-gradient(circle, #ffffff 0 1px, transparent 2px) 78% 30% / 22px 22px,
+    radial-gradient(circle, var(--chip-color) 0 1px, transparent 2px) 58% 86% / 20px 20px;
+  z-index: 0;
+}
+
+.calendar-priority-chip > * {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-priority-chip:hover,
+.calendar-priority-chip:focus-visible {
+  transform: translateY(-1px) scale(1.015);
+  border-color: color-mix(in srgb, var(--chip-color) 78%, #ffffff 22%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--chip-color) 36%, transparent), 0 0 22px color-mix(in srgb, var(--chip-color) 18%, transparent);
+  outline: none;
+}
+
+.calendar-priority-chip:hover::before,
+.calendar-priority-chip:focus-visible::before {
+  opacity: 0.72;
+  animation: calendarChipSpark 360ms linear;
+}
+
+.calendar-priority-chip:hover::after,
+.calendar-priority-chip:focus-visible::after {
+  opacity: 0.62;
+  animation: calendarChipParticles 360ms ease-out;
+}
+
+.calendar-priority-chip[data-chip-tone="overdue"],
+.calendar-priority-chip[data-chip-tone="urgent"],
+.calendar-status-chip[data-chip-tone="overdue"] {
+  --chip-color: #ef4444;
+}
+
+.calendar-priority-chip[data-chip-tone="high"] {
+  --chip-color: #f97316;
+}
+
+.calendar-priority-chip[data-chip-tone="medium"],
+.calendar-status-chip[data-chip-tone="warning"] {
+  --chip-color: #f59e0b;
+}
+
+.calendar-priority-chip[data-chip-tone="low"] {
+  --chip-color: #14b8a6;
+}
+
+.calendar-status-chip[data-chip-tone="safe"] {
+  --chip-color: #10b981;
+}
+
+.calendar-task-card {
+  background: var(--calendar-card-bg);
+  border-color: var(--calendar-panel-border);
+  color: var(--calendar-text);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+.calendar-task-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--calendar-glow) 72%, var(--calendar-panel-border));
+  box-shadow: 0 18px 36px var(--calendar-glow);
+}
+
+.calendar-task-title {
+  color: var(--calendar-text);
+}
+
+.calendar-task-meta,
+.calendar-task-progress-label {
+  color: var(--calendar-muted);
+}
+
+.calendar-task-avatar,
+.calendar-task-progress-track {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--calendar-text);
+}
+
+@keyframes calendarChipSpark {
+  from {
+    transform: rotate(0deg) scale(0.96);
+  }
+  to {
+    transform: rotate(160deg) scale(1.04);
+  }
+}
+
+@keyframes calendarChipParticles {
+  0% {
+    transform: translateX(-6px) scale(0.92);
+    filter: blur(0);
+  }
+  100% {
+    transform: translateX(8px) scale(1.08);
+    filter: blur(0.4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-day-card,
+  .calendar-control-button,
+  .calendar-priority-chip,
+  .calendar-task-card {
+    transition: none !important;
+  }
+
+  .calendar-day-card:hover,
+  .calendar-day-card:focus-visible,
+  .calendar-priority-chip:hover,
+  .calendar-priority-chip:focus-visible,
+  .calendar-task-card:hover {
+    transform: none !important;
+  }
+
+  .calendar-priority-chip:hover::before,
+  .calendar-priority-chip:focus-visible::before,
+  .calendar-priority-chip:hover::after,
+  .calendar-priority-chip:focus-visible::after {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .chat-workspace {
+    margin: -1rem;
+  }
+
+  .chat-shell {
+    height: calc(100vh - 4rem);
+    min-height: 560px;
+  }
+
+  .chat-room-header {
+    min-height: 4.5rem;
+    padding: 0.9rem;
+  }
+
+  .chat-message-list,
+  .chat-composer {
+    padding-right: 0.9rem;
+    padding-left: 0.9rem;
+  }
 }
 

@@ -2,6 +2,8 @@
 import React, { Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth, SearchProvider, ThemeProvider, useTheme } from './hooks/useAuth';
+import { LoadingProvider } from './components/loading/LoadingProvider';
+import PageLoader from './components/loading/PageLoader';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -25,27 +27,6 @@ const Logs = React.lazy(() => import('./pages/Logs'));
 const ToolLibrary = React.lazy(() => import('./pages/ToolLibrary'));
 const MasterControl = React.lazy(() => import('./pages/MasterControl'));
 
-const PageLoader: React.FC = () => (
-  <div className="h-full min-h-[50vh] space-y-6 p-6">
-    <div className="flex items-center justify-between gap-4">
-      <div className="space-y-3">
-        <div className="h-4 w-32 animate-pulse rounded-full bg-white/10" />
-        <div className="h-8 w-64 animate-pulse rounded-full bg-white/15" />
-      </div>
-      <div className="h-10 w-28 animate-pulse rounded-full bg-white/10" />
-    </div>
-    <div className="grid gap-4 md:grid-cols-3">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/10" />
-      ))}
-    </div>
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="h-12 animate-pulse rounded-xl bg-white/10" />
-      ))}
-    </div>
-  </div>
-);
 const ProtectedLayout: React.FC = () => {
     return (
         <ProtectedRoute roles={[Role.USER, Role.MANAGER, Role.ADMIN, Role.OWNER]}>
@@ -112,11 +93,13 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <SearchProvider>
-            <AppContent />
-          </SearchProvider>
-        </AuthProvider>
+        <LoadingProvider>
+          <AuthProvider>
+            <SearchProvider>
+              <AppContent />
+            </SearchProvider>
+          </AuthProvider>
+        </LoadingProvider>
       </ThemeProvider>
     </HashRouter>
   );

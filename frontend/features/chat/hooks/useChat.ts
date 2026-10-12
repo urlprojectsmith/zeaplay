@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChatAttachment, ChatConversation, ChatMessage } from '../types';
+import { ChatAttachment, ChatConversation, ChatDirectoryUser, ChatMessage } from '../types';
 import { chatService } from '../services/chatService';
 import { useChatRealtime, ChatRealtimeEvent } from './useChatRealtime';
+import { useAuth } from '../../../hooks/useAuth';
+import { Role } from '../../../types';
+import { normalizeMessage } from '../utils/normalizeMessage';
 
 export const useChat = (initialConversationId?: string | null) => {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<ChatDirectoryUser[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(initialConversationId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingDirectory, setLoadingDirectory] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typingByConversation, setTypingByConversation] = useState<Record<string, Record<string, string>>>({});
@@ -40,6 +46,31 @@ export const useChat = (initialConversationId?: string | null) => {
     try {
       const data = await chatService.listConversations();
       setConversations(data);
+      setDirectoryUsers((current) => {
+        const byUserId = new Map(current.map((item) => [item.id, item]));
+        data.forEach((conversation) => {
+          if (conversation.type !== 'DIRECT') return;
+          const other = conversation.members.find((member) => member.userId !== user?.id);
+          if (!other || byUserId.has(other.userId)) return;
+          byUserId.set(other.userId, {
+            id: other.userId,
+            name: other.name,
+            email: other.email,
+            avatarUrl: other.avatarUrl ?? null,
+            presence: 'OFFLINE',
+            lastSeenAt: null,
+            roleName: other.appRole,
+            teamName: other.departmentName ?? null,
+            title: other.title ?? null,
+            existingConversationId: conversation.id,
+            isFavorite: other.isPinned,
+            unreadCount: conversation.unreadCount,
+            latestMessagePreview: conversation.lastMessage?.content ?? null,
+            lastMessageAt: conversation.lastMessageAt ?? null,
+          });
+        });
+        return Array.from(byUserId.values()).sort((a, b) => a.name.localeCompare(b.name));
+      });
       setSelectedConversationId((current) => {
         if (current && data.some((conversation) => conversation.id === current)) {
           return current;
@@ -54,12 +85,60 @@ export const useChat = (initialConversationId?: string | null) => {
     } finally {
       setLoadingConversations(false);
     }
-  }, [initialConversationId]);
+  }, [initialConversationId, user?.id]);
 
-  const mergeMessage = useCallback((message: ChatMessage, clientId?: string | null) => {
+  const loadDirectoryUsers = useCallback(async (search?: string) => {
+    setLoadingDirectory(true);
+    try {
+      const page = await chatService.listUsers({ search, limit: 100 });
+      setDirectoryUsers(page.items.filter((directoryUser) => directoryUser.id !== user?.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load chat users');
+    } finally {
+      setLoadingDirectory(false);
+    }
+  }, [user?.id]);
+
+  const markReadSafely = useCallback(async (conversationId: string, lastReadMessageId?: string | null) => {
+    try {
+      await chatService.markRead(conversationId, lastReadMessageId);
+    } catch (err) {
+      console.warn('chat.markRead.failed', err);
+    }
+  }, []);
+
+  const applyConversationPreview = useCallback((message: ChatMessage, unreadDelta = 0) => {
+    setConversations((current) => current.map((conversation) => {
+      if (conversation.id !== message.conversationId) return conversation;
+      return {
+        ...conversation,
+        lastMessage: message,
+        lastMessageAt: message.createdAt,
+        updatedAt: message.updatedAt,
+        unreadCount: selectedConversationIdRef.current === message.conversationId ? 0 : Math.max(0, conversation.unreadCount + unreadDelta),
+      };
+    }));
+    setDirectoryUsers((current) => current.map((directoryUser) => {
+      const existingConversationId = directoryUser.existingConversationId;
+      if (existingConversationId !== message.conversationId) return directoryUser;
+      return {
+        ...directoryUser,
+        latestMessagePreview: message.content,
+        lastMessageAt: message.createdAt,
+        unreadCount: selectedConversationIdRef.current === message.conversationId ? 0 : Math.max(0, directoryUser.unreadCount + unreadDelta),
+      };
+    }));
+  }, []);
+
+  const mergeMessage = useCallback((message: unknown, clientId?: string | null, fallback: Partial<ChatMessage> = {}) => {
+    const normalizedMessage = normalizeMessage(message, {
+      ...fallback,
+      clientId: clientId ?? fallback.clientId ?? null,
+      deliveryStatus: fallback.deliveryStatus ?? 'sent',
+    });
     setMessages((current) => {
-      const existingIndex = current.findIndex((item) => item.id === message.id || (clientId && item.clientId === clientId));
-      const nextMessage = { ...message, clientId: clientId ?? message.clientId ?? null, deliveryStatus: 'sent' as const };
+      const existingIndex = current.findIndex((item) => item.id === normalizedMessage.id || (clientId && item.clientId === clientId));
+      const nextMessage = { ...normalizedMessage, clientId: clientId ?? normalizedMessage.clientId ?? null, deliveryStatus: 'sent' as const };
       if (nextMessage.clientId && pendingSendTimersRef.current[nextMessage.clientId]) {
         window.clearTimeout(pendingSendTimersRef.current[nextMessage.clientId]);
         delete pendingSendTimersRef.current[nextMessage.clientId];
@@ -74,17 +153,27 @@ export const useChat = (initialConversationId?: string | null) => {
   const handleRealtimeEvent = useCallback((event: ChatRealtimeEvent) => {
     const payload = event.payload || {};
     if (event.type === 'message:new' && payload.message) {
-      if (payload.conversation_id === selectedConversationIdRef.current) {
-        mergeMessage(payload.message as ChatMessage, payload.client_id);
+      const message = normalizeMessage(payload.message, {
+        clientId: payload.client_id ?? payload.clientId ?? null,
+        conversationId: payload.conversation_id ?? payload.conversationId ?? '',
+        deliveryStatus: 'sent',
+      });
+      const active = message.conversationId === selectedConversationIdRef.current;
+      if (active) {
+        mergeMessage(message, message.clientId);
+        void markReadSafely(message.conversationId, message.id);
       }
-      void loadConversations();
+      applyConversationPreview(message, active ? 0 : 1);
       return;
     }
     if ((event.type === 'message:updated' || event.type === 'message:deleted' || event.type === 'reaction:added' || event.type === 'reaction:removed') && payload.message) {
-      if (payload.conversation_id === selectedConversationIdRef.current) {
-        setMessages((current) => current.map((item) => (item.id === payload.message.id ? { ...(payload.message as ChatMessage), deliveryStatus: item.deliveryStatus } : item)));
+      const message = normalizeMessage(payload.message, {
+        conversationId: payload.conversation_id ?? payload.conversationId ?? '',
+      });
+      if (message.conversationId === selectedConversationIdRef.current) {
+        setMessages((current) => current.map((item) => (item.id === message.id ? { ...message, deliveryStatus: item.deliveryStatus } : item)));
       }
-      void loadConversations();
+      applyConversationPreview(message);
       return;
     }
     if (event.type === 'typing:started') {
@@ -104,6 +193,9 @@ export const useChat = (initialConversationId?: string | null) => {
     }
     if (event.type === 'presence:changed') {
       setPresenceByUserId((current) => ({ ...current, [payload.user_id]: payload.status }));
+      setDirectoryUsers((current) => current.map((item) => (
+        item.id === payload.user_id ? { ...item, presence: payload.status } : item
+      )));
       return;
     }
     if (event.type === 'unread:updated') {
@@ -111,7 +203,7 @@ export const useChat = (initialConversationId?: string | null) => {
         conversation.id === payload.conversation_id ? { ...conversation, unreadCount: payload.unread_count } : conversation
       )));
     }
-  }, [loadConversations, mergeMessage]);
+  }, [applyConversationPreview, markReadSafely, mergeMessage]);
 
   const { connected: realtimeConnected, send: sendRealtime, join: joinRealtime, leave: leaveRealtime } = useChatRealtime(handleRealtimeEvent);
 
@@ -139,7 +231,7 @@ export const useChat = (initialConversationId?: string | null) => {
       setHasMore(page.hasMore);
       if (!cursor) {
         const latestMessage = page.items[page.items.length - 1];
-        void chatService.markRead(conversationId, latestMessage?.id ?? null);
+        void markReadSafely(conversationId, latestMessage?.id ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load messages');
@@ -147,11 +239,12 @@ export const useChat = (initialConversationId?: string | null) => {
       messageCursorInFlightRef.current.delete(`${conversationId}:${cursorKey}`);
       setLoadingMessages(false);
     }
-  }, []);
+  }, [markReadSafely]);
 
   useEffect(() => {
     void loadConversations();
-  }, [loadConversations]);
+    void loadDirectoryUsers();
+  }, [loadConversations, loadDirectoryUsers]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -168,13 +261,14 @@ export const useChat = (initialConversationId?: string | null) => {
     if (!selectedConversationId || (!content.trim() && attachments.length === 0)) return;
     setError(null);
     const clientId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimistic: ChatMessage = {
+    const optimistic = normalizeMessage({
       id: clientId,
       clientId,
       conversationId: selectedConversationId,
-      senderId: 'me',
-      senderName: 'You',
-      senderRole: 'USER' as any,
+      senderId: user?.id ?? 'me',
+      senderName: user?.name ?? 'You',
+      senderRole: user?.role ?? Role.USER,
+      sender: { id: user?.id ?? 'me', name: user?.name ?? 'You', avatarUrl: user?.avatarUrl ?? null },
       messageType: attachments.length ? 'FILE' : 'TEXT',
       content: content.trim(),
       replyToMessageId: options?.replyToMessageId ?? null,
@@ -184,49 +278,26 @@ export const useChat = (initialConversationId?: string | null) => {
       reactions: [],
       attachments,
       mentions: [],
-    };
+    });
     setMessages((current) => [...current, optimistic]);
+    applyConversationPreview(optimistic);
     try {
       const payloadAttachments = attachments.map(({ id, messageId, createdAt, ...attachment }) => attachment);
-      if (realtimeConnected && sendRealtime('message:send', {
-        conversation_id: selectedConversationId,
-        client_id: clientId,
-        content: content.trim(),
-        reply_to_message_id: options?.replyToMessageId ?? null,
-        attachments: payloadAttachments,
-      })) {
-        pendingSendTimersRef.current[clientId] = window.setTimeout(async () => {
-          try {
-            const message = await chatService.sendMessage(selectedConversationId, {
-              content: content.trim(),
-              clientId,
-              replyToMessageId: options?.replyToMessageId ?? null,
-              attachments: payloadAttachments,
-            });
-            mergeMessage(message, clientId);
-            void chatService.markRead(selectedConversationId, message.id);
-            void loadConversations();
-          } catch (err) {
-            setMessages((current) => current.map((message) => (message.clientId === clientId ? { ...message, deliveryStatus: 'failed' } : message)));
-            setError(err instanceof Error ? err.message : 'Unable to send message');
-          }
-        }, 8000);
-        return;
-      }
       const message = await chatService.sendMessage(selectedConversationId, {
         content: content.trim(),
         clientId,
         replyToMessageId: options?.replyToMessageId ?? null,
         attachments: payloadAttachments,
       });
-      mergeMessage(message, clientId);
-      void chatService.markRead(selectedConversationId, message.id);
-      void loadConversations();
+      const sentMessage = normalizeMessage(message, { conversationId: selectedConversationId, clientId, deliveryStatus: 'sent' });
+      mergeMessage(sentMessage, clientId, { conversationId: selectedConversationId });
+      applyConversationPreview(sentMessage);
+      void markReadSafely(selectedConversationId, sentMessage.id);
     } catch (err) {
       setMessages((current) => current.map((message) => (message.clientId === clientId ? { ...message, deliveryStatus: 'failed' } : message)));
       setError(err instanceof Error ? err.message : 'Unable to send message');
     }
-  }, [loadConversations, mergeMessage, realtimeConnected, selectedConversationId, sendRealtime]);
+  }, [applyConversationPreview, markReadSafely, mergeMessage, selectedConversationId, user?.avatarUrl, user?.id, user?.name, user?.role]);
 
   useEffect(() => () => {
     Object.values(pendingSendTimersRef.current).forEach((timer) => window.clearTimeout(timer));
@@ -234,7 +305,7 @@ export const useChat = (initialConversationId?: string | null) => {
   }, []);
 
   const retryMessage = useCallback((message: ChatMessage) => {
-    void sendMessage(message.content, { replyToMessageId: message.replyToMessageId, attachments: message.attachments });
+    void sendMessage(message.content ?? '', { replyToMessageId: message.replyToMessageId, attachments: message.attachments ?? [] });
     setMessages((current) => current.filter((item) => item.id !== message.id));
   }, [sendMessage]);
 
@@ -244,7 +315,7 @@ export const useChat = (initialConversationId?: string | null) => {
   }, [selectedConversationId, sendRealtime]);
 
   const toggleReaction = useCallback((message: ChatMessage, emoji: string, currentUserId?: string) => {
-    const hasReacted = message.reactions.some((reaction) => reaction.emoji === emoji && reaction.userId === currentUserId);
+    const hasReacted = (message.reactions ?? []).some((reaction) => reaction.emoji === emoji && reaction.userId === currentUserId);
     if (realtimeConnected && sendRealtime(hasReacted ? 'reaction:remove' : 'reaction:add', { message_id: message.id, emoji })) {
       return;
     }
@@ -283,6 +354,12 @@ export const useChat = (initialConversationId?: string | null) => {
     void loadConversations();
   }, [loadConversations, selectedConversationId]);
 
+  const toggleFavorite = useCallback(async (conversationId: string, userId: string, isPinned: boolean) => {
+    await chatService.updateMember(conversationId, userId, { isPinned });
+    await loadConversations();
+    await loadDirectoryUsers();
+  }, [loadConversations, loadDirectoryUsers]);
+
   const startDirect = useCallback(async (userId: string) => {
     setError(null);
     try {
@@ -292,10 +369,11 @@ export const useChat = (initialConversationId?: string | null) => {
         return exists ? current.map((item) => (item.id === conversation.id ? conversation : item)) : [conversation, ...current];
       });
       setSelectedConversationId(conversation.id);
+      void loadDirectoryUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start direct message');
     }
-  }, []);
+  }, [loadDirectoryUsers]);
 
   const createConversation = useCallback(async (payload: Parameters<typeof chatService.createConversation>[0]) => {
     setError(null);
@@ -310,12 +388,14 @@ export const useChat = (initialConversationId?: string | null) => {
 
   return {
     conversations,
+    directoryUsers,
     selectedConversation,
     selectedConversationId,
     messages,
     nextCursor,
     hasMore,
     loadingConversations,
+    loadingDirectory,
     loadingMessages,
     error,
     setSelectedConversationId,
@@ -330,10 +410,12 @@ export const useChat = (initialConversationId?: string | null) => {
     deleteMessage,
     pinMessage,
     unpinMessage,
+    toggleFavorite,
     uploadAttachment: chatService.uploadAttachment,
     typingUsers: selectedConversationId ? Object.values(typingByConversation[selectedConversationId] ?? {}) : [],
     presenceByUserId,
     realtimeConnected,
     reload: loadConversations,
+    reloadDirectory: loadDirectoryUsers,
   };
 };

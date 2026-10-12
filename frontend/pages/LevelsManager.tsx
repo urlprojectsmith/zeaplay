@@ -28,6 +28,7 @@ import {
 } from '../utils/levelsConfigStorage';
 import { getUserAvatarUrl } from '../utils/userAvatar';
 import { GiftIcon, PencilIcon, PlusIcon, RocketLaunchIcon, SparklesIcon, StarIcon, TrashIcon } from '../components/icons';
+import PageLoader from '../components/loading/PageLoader';
 
 type BadgeDraft = {
     name: string;
@@ -547,7 +548,7 @@ const LevelsManager: React.FC = () => {
     const badgeModeLabel = selectedBadge ? 'Edit badge' : 'Create badge';
 
     if (isLoading) {
-        return <div className="p-8 text-center text-text-secondary">Loading levels map...</div>;
+        return <PageLoader />;
     }
 
     return (

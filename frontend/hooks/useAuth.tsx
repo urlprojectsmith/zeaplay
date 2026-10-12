@@ -4,6 +4,7 @@ import { User, Role } from '../types';
 import api from '../services/mockApi';
 import { getAccessToken } from '../services/tokenStorage';
 import { AUTH_EXPIRED_EVENT } from '../utils/appEvents';
+import PageLoader from '../components/loading/PageLoader';
 
 // Auth Context
 interface AuthContextType {
@@ -76,12 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={value}>
       {loading ? (
-        <div className="flex items-center justify-center min-h-screen bg-background">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-            <p className="mt-4 text-text-secondary">Loading...</p>
-          </div>
-        </div>
+        <PageLoader />
       ) : (
         children
       )}

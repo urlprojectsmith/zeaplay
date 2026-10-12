@@ -1285,6 +1285,26 @@ export interface TaskPageResponse {
   total: number;
   totalPages: number;
   statusCounts: Record<TaskStatus, number>;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+}
+
+export interface TaskCalendarDaySummary {
+  date: string;
+  total: number;
+  completed: number;
+  overdue: number;
+  urgent: number;
+  high: number;
+  medium: number;
+  low: number;
+  dueSoon: number;
+}
+
+export interface TaskCalendarSummaryResponse {
+  startDate: string;
+  endDate: string;
+  days: TaskCalendarDaySummary[];
 }
 
 export interface TaskSummary {
@@ -1699,6 +1719,10 @@ export interface ChatMember {
   userId: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
+  title?: string | null;
+  departmentName?: string | null;
+  accountStatus: UserStatus;
   appRole: Role;
   role: ChatMemberRole;
   joinedAt: string;
@@ -1735,6 +1759,7 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   senderRole: Role;
+  sender?: { id: string; name: string; avatarUrl?: string | null };
   messageType: ChatMessageType;
   content: string;
   replyToMessageId?: string | null;
@@ -1767,6 +1792,28 @@ export interface ChatConversation {
   members: ChatMember[];
   unreadCount: number;
   lastMessage?: ChatMessage | null;
+}
+
+export interface ChatDirectoryUser {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+  presence: 'ONLINE' | 'AWAY' | 'OFFLINE';
+  lastSeenAt?: string | null;
+  roleName?: string | null;
+  teamName?: string | null;
+  title?: string | null;
+  existingConversationId?: string | null;
+  isFavorite: boolean;
+  unreadCount: number;
+  latestMessagePreview?: string | null;
+  lastMessageAt?: string | null;
+}
+
+export interface ChatDirectoryPage {
+  items: ChatDirectoryUser[];
+  nextCursor?: string | null;
 }
 
 export interface ChatConversationCreatePayload {

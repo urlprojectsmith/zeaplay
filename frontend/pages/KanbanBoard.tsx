@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Task, User, KanbanColumn } from '../types';
 import { Role, TaskStatus, TaskPriority, CUSTOM_STATUS_NAMES } from '../types';
 import { useAuth, useSearch, useTheme } from '../hooks/useAuth';
 import api from '../services/mockApi';
 import TaskDetailModal from '../components/TaskDetailModal';
+import PageLoader from '../components/loading/PageLoader';
 import Tooltip from '../components/ui/Tooltip';
 import { formatDate, formatTaskStatus } from '../utils';
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
@@ -493,6 +495,7 @@ const FilterDropdown: React.FC<{
 };
 
 const KanbanBoard: React.FC = () => {
+  const queryClient = useQueryClient();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [usersMap, setUsersMap] = useState<Map<string, User>>(new Map());
@@ -565,48 +568,85 @@ const KanbanBoard: React.FC = () => {
     setActiveDatePreset('custom');
   }, []);
 
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const [fetchedTasks, allUsers, deptData] = await Promise.all([
-        api.getTasks(user.id, user.role),
-        api.getUsers(),
-        api.getDepartments(),
-      ]);
-      const relevantTasks =
-        user.role === Role.USER ? fetchedTasks.filter((t) => t.assignedTo?.includes(user.id)) : fetchedTasks;
-      setTasks(augmentTasksWithPoints(relevantTasks));
+  const kanbanQueryParams = useMemo(() => ({
+    pageSize,
+    search: debouncedSearchQuery || undefined,
+    priority: priorityFilter ? (priorityFilter as TaskPriority) : undefined,
+    assigneeId: assigneeFilter || undefined,
+    team: teamFilter || undefined,
+    dueDate: dueDateFilter || undefined,
+    quickFilter: quickFilter || undefined,
+  }), [assigneeFilter, debouncedSearchQuery, dueDateFilter, pageSize, priorityFilter, quickFilter, teamFilter]);
 
-      const fixedColumns = Object.values(TaskStatus).map((status) => ({
-        id: status,
-        title: statusDetails[status]?.label || formatTaskStatus(status),
-        order: 0,
-        pipelineId: 'default',
-      }));
-      setColumns(fixedColumns);
+  const kanbanQuery = useQuery({
+    queryKey: ['tasks', 'kanban-board', kanbanQueryParams],
+    queryFn: ({ signal }) => api.getTasksKanban({ ...kanbanQueryParams, signal }),
+    enabled: Boolean(user),
+    staleTime: 45_000,
+    placeholderData: keepPreviousData,
+  });
 
-      const map = new Map<string, User>();
-      allUsers.forEach((entry: User) => map.set(entry.id, entry));
-      setUsersMap(map);
-      const departmentNames = Array.from(
-        new Set(
-          (deptData ?? [])
-            .map((dept) => dept.name)
-            .filter((name): name is string => Boolean(name)),
-        ),
-      ).sort((a, b) => a.localeCompare(b));
-      setDepartmentOptions(departmentNames);
-    } catch (err) {
-      console.error('Failed to fetch Kanban data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const usersQuery = useQuery({
+    queryKey: ['users', 'kanban-board'],
+    queryFn: () => api.getUsers(),
+    enabled: Boolean(user),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const departmentsQuery = useQuery({
+    queryKey: ['departments', 'kanban-board'],
+    queryFn: () => api.getDepartments(),
+    enabled: Boolean(user),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const fetchData = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['tasks', 'kanban-board'] });
+  }, [queryClient]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!kanbanQuery.data) return;
+    const fetchedTasks = kanbanQuery.data.columns.flatMap((column) => column.items);
+    setTasks(augmentTasksWithPoints(fetchedTasks));
+    setColumns(kanbanQuery.data.columns.map((column) => ({
+      id: column.status,
+      title: column.title || statusDetails[column.status]?.label || formatTaskStatus(column.status),
+      order: column.order,
+      pipelineId: 'default',
+    })));
+  }, [kanbanQuery.data]);
+
+  useEffect(() => {
+    if (!usersQuery.data) return;
+    const map = new Map<string, User>();
+    usersQuery.data.forEach((entry: User) => map.set(entry.id, entry));
+    setUsersMap(map);
+  }, [usersQuery.data]);
+
+  useEffect(() => {
+    if (!departmentsQuery.data) return;
+    const departmentNames = Array.from(
+      new Set(
+        (departmentsQuery.data ?? [])
+          .map((dept) => dept.name)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+    setDepartmentOptions(departmentNames);
+  }, [departmentsQuery.data]);
+
+  useEffect(() => {
+    setLoading(Boolean(user) && (kanbanQuery.isLoading || usersQuery.isLoading || departmentsQuery.isLoading));
+  }, [departmentsQuery.isLoading, kanbanQuery.isLoading, user, usersQuery.isLoading]);
+
+  useEffect(() => {
+    const error = kanbanQuery.error || usersQuery.error || departmentsQuery.error;
+    if (error) {
+      console.error('Failed to fetch Kanban data:', error);
+    }
+  }, [departmentsQuery.error, kanbanQuery.error, usersQuery.error]);
 
   useEffect(() => {
     if (!isDateRangeOpen) {
@@ -647,6 +687,7 @@ const KanbanBoard: React.FC = () => {
     try {
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
       await api.updateTask(taskId, { status: newStatus }, user.id);
+      void queryClient.invalidateQueries({ queryKey: ['tasks', 'kanban-board'] });
     } catch (err) {
       console.error('Failed to update task:', err);
       fetchData();
@@ -972,7 +1013,7 @@ const KanbanBoard: React.FC = () => {
     [departmentOptions],
   );
 
-  if (loading) return <div className={`text-center p-8 ${boardMutedTextClass}`}>Loading Battle Board...</div>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className={pageShellClass} style={{ color: boardTextColorHex }}>

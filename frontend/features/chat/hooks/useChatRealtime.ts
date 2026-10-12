@@ -14,7 +14,7 @@ const resolveChatSocketUrl = () => {
   const configuredApiBase = (
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
-    '/api'
+    'https://todoplay.urlfactory.website/api'
   ).replace(/\/$/, '');
   const absoluteApiBase = configuredApiBase.startsWith('http')
     ? configuredApiBase
@@ -30,6 +30,7 @@ export const useChatRealtime = (onEvent: (event: ChatRealtimeEvent) => void) => 
   const socketRef = useRef<WebSocket | null>(null);
   const eventHandlerRef = useRef(onEvent);
   const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
   const closedByHookRef = useRef(false);
   const joinedRef = useRef<Set<string>>(new Set());
   const [connected, setConnected] = useState(false);
@@ -57,6 +58,7 @@ export const useChatRealtime = (onEvent: (event: ChatRealtimeEvent) => void) => 
     const socket = new WebSocket(url);
     socketRef.current = socket;
     socket.onopen = () => {
+      reconnectAttemptRef.current = 0;
       setConnected(true);
       joinedRef.current.forEach((conversationId) => {
         socket.send(JSON.stringify({ type: 'chat:join', payload: { conversation_id: conversationId } }));
@@ -69,10 +71,20 @@ export const useChatRealtime = (onEvent: (event: ChatRealtimeEvent) => void) => 
       } catch {
       }
     };
-    socket.onclose = () => {
+    socket.onclose = (event) => {
+      const shouldHandleClose = socketRef.current === socket;
       setConnected(false);
-      if (socketRef.current === socket && !closedByHookRef.current) {
-        reconnectTimerRef.current = window.setTimeout(connect, 1500);
+      if (shouldHandleClose) {
+        socketRef.current = null;
+      }
+      if (event.code === 1008) {
+        closedByHookRef.current = true;
+        return;
+      }
+      if (shouldHandleClose && !closedByHookRef.current) {
+        reconnectAttemptRef.current += 1;
+        const delay = Math.min(30000, 1500 * reconnectAttemptRef.current);
+        reconnectTimerRef.current = window.setTimeout(connect, delay);
       }
     };
     socket.onerror = () => socket.close();

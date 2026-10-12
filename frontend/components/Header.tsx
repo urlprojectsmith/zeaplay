@@ -25,6 +25,7 @@ import {
 import { Notification, NotificationType } from '../types';
 import NotificationDetailModal from './NotificationDetailModal';
 import { APP_REFRESH_EVENT } from '../utils/appEvents';
+import GlobalProgressBar from './loading/GlobalProgressBar';
 
 // ✅ NEW IMPORT
 import ClockButton from './ClockAssistant/ClockButton';
@@ -939,6 +940,7 @@ const Header = ({ onNotificationClick, onRewardNotificationClick, onSupportClick
         isOpen={notificationPreviewOpen}
         onClose={closeNotificationPreview}
       />
+      <GlobalProgressBar />
     </header>
   );
 };

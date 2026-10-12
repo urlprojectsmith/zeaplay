@@ -321,29 +321,23 @@ const Sidebar: React.FC<SidebarProps> = ({ onSupportClick, isCollapsed, onToggle
         <div
             className={`group/sidebar sidebar-shell sidebar-${activeTheme} relative border-r flex h-full flex-col rounded-2xl shadow-lg transition-all duration-300 lg:rounded-none lg:shadow-none ${isCollapsed ? 'w-16' : 'w-64'}`}
         >
+            {isCollapsed && (
             <button
                 type="button"
                 onClick={onToggleCollapse}
-                className={`absolute z-40 flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/60 bg-slate-950/90 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.45)] transition duration-300 ease-in-out hover:scale-105 hover:border-cyan-200/80 hover:text-white focus-visible:opacity-100 focus-visible:pointer-events-auto dark:border-cyan-300/60 dark:bg-slate-950/90 ${
-                    isCollapsed
-                        ? 'left-1/2 top-4 -translate-x-1/2 opacity-100 pointer-events-auto'
-                        : 'right-0 top-14 translate-x-1/2 -translate-y-1/2 opacity-100 pointer-events-auto'
-                }`}
-                aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                className="absolute left-1/2 top-4 z-40 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border border-cyan-300/60 bg-slate-950/90 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.45)] transition duration-300 ease-in-out hover:scale-105 hover:border-cyan-200/80 hover:text-white focus-visible:opacity-100 focus-visible:pointer-events-auto dark:border-cyan-300/60 dark:bg-slate-950/90"
+                aria-label="Expand sidebar"
             >
-                {isCollapsed ? (
-                    <Menu className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
-                ) : (
-                    <PanelLeftClose className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
-                )}
+                <Menu className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
             </button>
+            )}
             {!isCollapsed && (
             <div className="px-4 pb-5 pt-7">
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center gap-2">
                     <button
                         type="button"
                         onClick={handleThemeToggle}
-                        className="theme-pill-button mode-switch-button group flex items-center gap-2 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.28em]"
+                        className="theme-pill-button mode-switch-button group flex h-10 items-center gap-2 rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.28em]"
                         aria-label={themeLabel}
                     >
                         <img
@@ -354,6 +348,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onSupportClick, isCollapsed, onToggle
                         <span className="hidden text-[10px] font-semibold uppercase tracking-[0.28em] sm:inline">
                             {themeLabel}
                         </span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        className="mode-switch-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition duration-300 ease-in-out hover:scale-105"
+                        aria-label="Collapse sidebar"
+                    >
+                        <PanelLeftClose className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
                     </button>
                 </div>
             </div>

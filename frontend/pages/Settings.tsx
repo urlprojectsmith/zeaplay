@@ -2,6 +2,7 @@ import React, { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'rea
 
 import { useAuth, useTheme } from '../hooks/useAuth';
 import api from '../services/mockApi';
+import PageLoader from '../components/loading/PageLoader';
 import {
     AvatarCropMetadata,
     DataExportScope,
@@ -1207,14 +1208,7 @@ const Settings: React.FC = () => {
     }
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-full py-20">
-                <div className="text-center">
-                    <div className="animate-spin h-12 w-12 border-3 border-primary border-t-transparent rounded-full mx-auto" />
-                    <p className="mt-4 text-text-secondary">Loading owner settings...</p>
-                </div>
-            </div>
-        );
+        return <PageLoader />;
     }
 
     return (

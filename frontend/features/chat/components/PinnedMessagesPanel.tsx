@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { SparklesIcon, XMarkIcon } from '../../../components/icons';
+import { SparklesIcon } from '../../../components/icons';
 import { ChatPinnedMessage } from '../types';
 
 type Props = {
@@ -23,27 +23,33 @@ const PinnedMessagesPanel: React.FC<Props> = ({ open, loading, pins, canManage, 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-slate-200 bg-white shadow-2xl">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-gradient-to-r from-amber-50 to-violet-50 px-4 py-4">
-        <SparklesIcon className="h-5 w-5 text-amber-500" />
-        <h2 className="flex-1 text-base font-black text-slate-950">Pinned messages</h2>
-        <button type="button" aria-label="Close pinned messages" onClick={onClose} className="rounded-xl p-2 text-slate-500 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500">
-          <XMarkIcon className="h-5 w-5" />
+    <div className="fixed bottom-0 right-0 top-5 z-50 flex w-full max-w-sm flex-col border-l border-zinc-800 bg-zinc-950 text-white shadow-2xl">
+      <header className="relative flex min-h-16 items-center gap-3 border-b border-zinc-800 bg-zinc-900 py-3 pl-4 pr-14">
+        <SparklesIcon className="h-5 w-5 text-amber-400" />
+        <h2 className="flex-1 text-base font-black text-white">Pinned messages</h2>
+        <button
+          type="button"
+          aria-label="Close pinned messages"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-white/30 bg-white text-lg font-black leading-none text-zinc-950 shadow-lg hover:bg-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
+        >
+          <span aria-hidden="true">X</span>
+          <span className="sr-only">Close</span>
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {loading && <div className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}</div>}
-        {!loading && pins.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No pinned messages yet.</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-4">
+        {loading && <div className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-zinc-900" />)}</div>}
+        {!loading && pins.length === 0 && <p className="px-2 py-2 text-sm text-zinc-400">No pinned messages yet.</p>}
         {!loading && pins.map((pin) => (
-          <article key={pin.id} className="mb-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <article key={pin.id} className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <p className="truncate text-sm font-black text-slate-950">{pin.message.senderName}</p>
-              <p className="text-xs text-slate-400">{new Date(pin.createdAt).toLocaleDateString()}</p>
+              <p className="truncate text-sm font-black text-white">{pin.message.senderName}</p>
+              <p className="text-xs text-zinc-500">{new Date(pin.createdAt).toLocaleDateString()}</p>
             </div>
-            <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-600">{pin.message.content || 'Attachment'}</p>
+            <p className="mt-2 line-clamp-4 text-sm leading-6 text-zinc-300">{pin.message.content || 'Attachment'}</p>
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => onJump(pin.messageId)} className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-100">Jump</button>
-              {canManage && <button type="button" onClick={() => onUnpin(pin.messageId)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600 hover:bg-slate-200">Unpin</button>}
+              <button type="button" onClick={() => onJump(pin.messageId)} className="rounded-full bg-sky-500 px-3 py-1.5 text-xs font-black text-white hover:bg-sky-400">Jump</button>
+              {canManage && <button type="button" onClick={() => onUnpin(pin.messageId)} className="rounded-full bg-zinc-800 px-3 py-1.5 text-xs font-black text-zinc-200 hover:bg-zinc-700">Unpin</button>}
             </div>
           </article>
         ))}

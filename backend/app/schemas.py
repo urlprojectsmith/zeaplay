@@ -555,6 +555,8 @@ class TaskListResponse(BaseModel):
     total: int
     total_pages: int
     status_counts: Dict[str, int] = Field(default_factory=dict)
+    next_cursor: Optional[str] = None
+    has_more: bool = False
 
 
 class TaskSummaryResponse(BaseModel):
@@ -582,6 +584,24 @@ class TaskKanbanColumn(BaseModel):
 
 class TaskKanbanResponse(BaseModel):
     columns: List[TaskKanbanColumn]
+
+
+class TaskCalendarDaySummary(BaseModel):
+    date: date
+    total: int = 0
+    completed: int = 0
+    overdue: int = 0
+    urgent: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    due_soon: int = 0
+
+
+class TaskCalendarSummaryResponse(BaseModel):
+    start_date: date
+    end_date: date
+    days: List[TaskCalendarDaySummary]
 
 
 # Minimal task payload for leaderboard point calculation.
@@ -1551,6 +1571,10 @@ class ChatMemberRead(BaseModel):
     user_id: str
     name: str
     email: str
+    avatar_url: Optional[str] = None
+    title: Optional[str] = None
+    department_name: Optional[str] = None
+    account_status: UserStatusEnum = UserStatusEnum.ACTIVE
     app_role: RoleEnum
     role: ChatMemberRoleEnum
     joined_at: datetime
@@ -1594,6 +1618,28 @@ class ChatDirectCreate(BaseModel):
         if not value and not values.get("user_id"):
             raise ValueError("user_id is required")
         return value
+
+
+class ChatDirectoryUserRead(BaseModel):
+    id: str
+    name: str
+    email: str
+    avatar_url: Optional[str] = None
+    presence: Literal["ONLINE", "AWAY", "OFFLINE"] = "OFFLINE"
+    last_seen_at: Optional[datetime] = None
+    role_name: Optional[str] = None
+    team_name: Optional[str] = None
+    title: Optional[str] = None
+    existing_conversation_id: Optional[str] = None
+    is_favorite: bool = False
+    unread_count: int = 0
+    latest_message_preview: Optional[str] = None
+    last_message_at: Optional[datetime] = None
+
+
+class ChatDirectoryPage(BaseModel):
+    items: List[ChatDirectoryUserRead]
+    next_cursor: Optional[str] = None
 
 
 class ChatMemberAdd(BaseModel):

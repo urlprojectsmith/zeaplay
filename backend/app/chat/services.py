@@ -18,7 +18,7 @@ from ..services import notifications as notification_service
 from ..storage.local import LocalAdapter
 from ..webhooks import service as webhook_service
 from .permissions import ChatPermissionService
-from .repositories import ConversationRepository, MessageRepository
+from .repositories import ConversationRepository, MemberRepository, MessageRepository, can_use_global_chat_directory
 from .serializers import serialize_conversation, serialize_member, serialize_message
 
 logger = logging.getLogger("zeaplay.chat")
@@ -168,7 +168,9 @@ class ConversationService:
         if not target_user_id or target_user_id == user.id:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Select another user")
         target = self.db.get(models.User, target_user_id)
-        if not target or target.tenant_id != user.tenant_id:
+        if not target or target.status != models.UserStatusEnum.ACTIVE:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if target.tenant_id != user.tenant_id and not can_use_global_chat_directory(user):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         direct_key = build_direct_key(user.id, target.id)
@@ -218,7 +220,7 @@ class ConversationService:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Conversation name is required")
 
         member_ids = list(dict.fromkeys([*payload.member_ids, user.id]))
-        users = self.permissions.validate_same_tenant_users(member_ids, user.tenant_id)
+        users = self.permissions.validate_chat_eligible_users(member_ids, user)
         conversation = models.ChatConversation(
             tenant_id=user.tenant_id,
             type=payload.type,
@@ -279,6 +281,78 @@ class ConversationService:
         )
 
 
+class DirectoryService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.members = MemberRepository(db)
+        self.conversations = ConversationRepository(db)
+
+    def list_users(
+        self,
+        user: models.User,
+        *,
+        search: str | None = None,
+        cursor: str | None = None,
+        limit: int = 100,
+        team_id: str | None = None,
+    ) -> schemas.ChatDirectoryPage:
+        limit = min(max(limit, 1), 100)
+        users = self.members.list_chat_eligible_users(
+            user,
+            search=search,
+            cursor=cursor,
+            limit=limit,
+            team_id=team_id,
+        )
+        has_more = len(users) > limit
+        page_users = users[:limit]
+
+        conversations = self.conversations.list_for_user(user)
+        direct_by_user_id: dict[str, models.ChatConversation] = {}
+        direct_conversations: list[models.ChatConversation] = []
+        for conversation in conversations:
+            if conversation.type != models.ChatConversationTypeEnum.DIRECT:
+                continue
+            other_member = next((member for member in conversation.participants if member.user_id != user.id), None)
+            if not other_member:
+                continue
+            direct_by_user_id[other_member.user_id] = conversation
+            direct_conversations.append(conversation)
+
+        conversation_ids = [conversation.id for conversation in direct_conversations]
+        latest_messages = self.conversations.latest_messages_by_conversation(conversation_ids)
+        unread_counts = self.conversations.unread_counts_for_user(conversation_ids, user)
+
+        items: list[schemas.ChatDirectoryUserRead] = []
+        for directory_user in page_users:
+            conversation = direct_by_user_id.get(directory_user.id)
+            current_membership = None
+            if conversation:
+                current_membership = next((member for member in conversation.participants if member.user_id == user.id), None)
+            latest_message = latest_messages.get(conversation.id) if conversation else None
+            items.append(
+                schemas.ChatDirectoryUserRead(
+                    id=directory_user.id,
+                    name=directory_user.name,
+                    email=directory_user.email,
+                    avatar_url=directory_user.profile_image_url,
+                    presence="OFFLINE",
+                    role_name=directory_user.role.value if directory_user.role else None,
+                    team_name=directory_user.department.name if directory_user.department else None,
+                    title=directory_user.title,
+                    existing_conversation_id=conversation.id if conversation else None,
+                    is_favorite=bool(current_membership and current_membership.is_pinned),
+                    unread_count=unread_counts.get(conversation.id, 0) if conversation else 0,
+                    latest_message_preview=latest_message.content if latest_message and not latest_message.deleted_at else None,
+                    last_message_at=conversation.last_message_at if conversation else None,
+                )
+            )
+        return schemas.ChatDirectoryPage(
+            items=items,
+            next_cursor=page_users[-1].name if has_more and page_users else None,
+        )
+
+
 class MemberService:
     def __init__(self, db: Session):
         self.db = db
@@ -299,7 +373,7 @@ class MemberService:
         self.permissions.require_manager(conversation, user)
         if conversation.type == models.ChatConversationTypeEnum.DIRECT:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot add members to direct conversations")
-        users = self.permissions.validate_same_tenant_users(payload.user_ids, user.tenant_id)
+        users = self.permissions.validate_chat_eligible_users(payload.user_ids, user)
         members = [self.permissions.add_member(conversation, member_user, payload.role) for member_user in users]
         self.db.commit()
         logger.info("chat.members.added conversation_id=%s user_id=%s count=%s", conversation.id, user.id, len(members))
@@ -415,11 +489,12 @@ class MessageService:
         members = conversation.participants or []
         for member in members:
             member_user = member.user
+            if not member_user or member_user.status != models.UserStatusEnum.ACTIVE:
+                continue
             aliases = {member.user_id.lower()}
-            if member_user:
-                aliases.add((member_user.email or "").split("@")[0].lower())
-                aliases.add((member_user.name or "").replace(" ", ".").lower())
-                aliases.add((member_user.name or "").replace(" ", "").lower())
+            aliases.add((member_user.email or "").split("@")[0].lower())
+            aliases.add((member_user.name or "").replace(" ", ".").lower())
+            aliases.add((member_user.name or "").replace(" ", "").lower())
             if tokens & aliases and member.user_id != user.id:
                 mentioned_user_ids.append(member.user_id)
         for mentioned_user_id in dict.fromkeys(mentioned_user_ids):
@@ -460,6 +535,13 @@ class MessageService:
     def create_message(self, conversation_id: str, payload: schemas.ChatMessageCreate, user: models.User) -> schemas.ChatMessageRead:
         conversation = self.permissions.get_conversation(conversation_id, user)
         self.permissions.require_member(conversation, user)
+        if conversation.type == models.ChatConversationTypeEnum.DIRECT:
+            other_member = next((member for member in conversation.participants if member.user_id != user.id), None)
+            if other_member and (not other_member.user or other_member.user.status != models.UserStatusEnum.ACTIVE):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This user is no longer active. You can view previous messages but cannot send new messages.",
+                )
         check_rate_limit(f"chat:message:{user.id}", limit=30, window_seconds=60)
         client_id = payload.client_id.strip() if payload.client_id else None
         if client_id:

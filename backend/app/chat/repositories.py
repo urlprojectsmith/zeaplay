@@ -3,10 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable
 
-from sqlalchemy import and_, case, desc, func, or_, select
+from sqlalchemy import and_, case, desc, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .. import models
+
+
+GLOBAL_CHAT_ROLES = {models.RoleEnum.ADMIN, models.RoleEnum.MANAGER, models.RoleEnum.OWNER}
+
+
+def can_use_global_chat_directory(user: models.User) -> bool:
+    return user.role in GLOBAL_CHAT_ROLES
 
 
 class ConversationRepository:
@@ -19,9 +26,11 @@ class ConversationRepository:
             .join(models.ChatParticipant)
             .options(
                 selectinload(models.ChatConversation.participants).selectinload(models.ChatParticipant.user),
+                selectinload(models.ChatConversation.participants)
+                .selectinload(models.ChatParticipant.user)
+                .selectinload(models.User.department),
             )
             .where(
-                models.ChatConversation.tenant_id == user.tenant_id,
                 models.ChatConversation.is_archived.is_(False),
                 models.ChatParticipant.user_id == user.id,
             )
@@ -29,15 +38,22 @@ class ConversationRepository:
         ).scalars().unique().all()
 
     def get_for_user(self, conversation_id: str, user: models.User) -> models.ChatConversation | None:
+        membership_exists = exists().where(
+            models.ChatParticipant.conversation_id == models.ChatConversation.id,
+            models.ChatParticipant.user_id == user.id,
+        )
         return self.db.execute(
             select(models.ChatConversation)
             .options(
                 selectinload(models.ChatConversation.participants).selectinload(models.ChatParticipant.user),
+                selectinload(models.ChatConversation.participants)
+                .selectinload(models.ChatParticipant.user)
+                .selectinload(models.User.department),
             )
             .where(
                 models.ChatConversation.id == conversation_id,
-                models.ChatConversation.tenant_id == user.tenant_id,
                 models.ChatConversation.is_archived.is_(False),
+                or_(models.ChatConversation.tenant_id == user.tenant_id, membership_exists),
             )
         ).scalars().first()
 
@@ -51,7 +67,6 @@ class ConversationRepository:
             select(models.ChatConversation.id)
             .join(models.ChatParticipant)
             .where(
-                models.ChatConversation.tenant_id == user.tenant_id,
                 models.ChatConversation.type == models.ChatConversationTypeEnum.DIRECT,
                 models.ChatConversation.is_archived.is_(False),
             )
@@ -68,7 +83,6 @@ class ConversationRepository:
             select(models.ChatConversation.id)
             .join(models.ChatParticipant)
             .where(
-                models.ChatConversation.tenant_id == tenant_id,
                 models.ChatConversation.type == models.ChatConversationTypeEnum.DIRECT,
                 models.ChatConversation.direct_key == direct_key,
                 models.ChatConversation.is_archived.is_(False),
@@ -194,6 +208,53 @@ class MemberRepository:
             select(models.User).where(models.User.id.in_(user_ids), models.User.tenant_id == tenant_id)
         ).scalars().all()
 
+    def chat_eligible_users_query(self, current_user: models.User, *, include_current_user: bool = False):
+        query = (
+            select(models.User)
+            .where(models.User.status == models.UserStatusEnum.ACTIVE)
+        )
+        if not can_use_global_chat_directory(current_user):
+            query = query.where(models.User.tenant_id == current_user.tenant_id)
+        if not include_current_user:
+            query = query.where(models.User.id != current_user.id)
+        return query
+
+    def list_chat_eligible_users(
+        self,
+        current_user: models.User,
+        *,
+        search: str | None = None,
+        team_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+        include_current_user: bool = False,
+    ) -> list[models.User]:
+        query = self.chat_eligible_users_query(current_user, include_current_user=include_current_user)
+        if search:
+            needle = f"%{search.strip()}%"
+            query = query.where(
+                or_(
+                    models.User.name.ilike(needle),
+                    models.User.email.ilike(needle),
+                    models.User.title.ilike(needle),
+                    models.User.employer_id.ilike(needle),
+                )
+            )
+        if team_id:
+            query = query.where(models.User.department_id == team_id)
+        if cursor:
+            query = query.where(models.User.name > cursor)
+        query = query.order_by(models.User.name.asc(), models.User.id.asc()).limit(limit + 1)
+        return self.db.execute(query).scalars().all()
+
+    def list_chat_eligible_users_by_ids(self, user_ids: list[str], current_user: models.User) -> list[models.User]:
+        unique_ids = list(dict.fromkeys(user_ids))
+        if not unique_ids:
+            return []
+        return self.db.execute(
+            self.chat_eligible_users_query(current_user, include_current_user=True).where(models.User.id.in_(unique_ids))
+        ).scalars().all()
+
 
 class MessageRepository:
     def __init__(self, db: Session):
@@ -308,7 +369,6 @@ class MessageRepository:
                 .selectinload(models.ChatParticipant.user),
             )
             .where(
-                models.ChatConversation.tenant_id == user.tenant_id,
                 models.ChatConversation.is_archived.is_(False),
                 models.ChatParticipant.user_id == user.id,
                 models.ChatMessage.deleted_at.is_(None),

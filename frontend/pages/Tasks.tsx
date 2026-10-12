@@ -496,10 +496,10 @@ const Tasks: React.FC = () => {
     });
     const [currentPage, setCurrentPage] = useState(1);
     const prefetchSummaries = false;
-    const [globalPageSize, setGlobalPageSize] = useState(20);
+    const [globalPageSize, setGlobalPageSize] = useState(50);
     const [pageSizeByView, setPageSizeByView] = useState<Record<'list' | 'grid' | 'kanban', number>>({
-        list: 20,
-        grid: 10,
+        list: 50,
+        grid: 30,
         kanban: 10,
     });
 

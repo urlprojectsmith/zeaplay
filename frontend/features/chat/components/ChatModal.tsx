@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { XMarkIcon } from '../../../components/icons';
 import { User } from '../../../types';
-import { ChatConversationType } from '../types';
+import { ChatConversationType, ChatDirectoryUser } from '../types';
 
 type Mode = 'DIRECT' | 'GROUP' | 'SPACE';
 
 type Props = {
   open: boolean;
   mode: Mode;
-  users: User[];
+  users: ChatDirectoryUser[];
   currentUser?: User | null;
   presenceByUserId: Record<string, 'ONLINE' | 'AWAY' | 'OFFLINE'>;
   onClose: () => void;
@@ -92,7 +92,7 @@ const ChatModal: React.FC<Props> = ({
       .filter((user) => user.id !== currentUser?.id)
       .filter((user) => {
         if (!needle) return true;
-        return [user.name, user.email, user.department, user.title, user.employerId]
+        return [user.name, user.email, user.teamName, user.title, user.roleName]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(needle));
       })
@@ -204,7 +204,7 @@ const ChatModal: React.FC<Props> = ({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-950">{candidate.name}</span>
-                      <span className="block truncate text-xs text-slate-500">{candidate.department || candidate.title || candidate.email}</span>
+                      <span className="block truncate text-xs text-slate-500">{candidate.teamName || candidate.title || candidate.email}</span>
                     </span>
                     {mode !== 'DIRECT' && <span className={`h-5 w-5 rounded-full border ${checked ? 'border-violet-500 bg-violet-500' : 'border-slate-300'}`} aria-hidden="true" />}
                   </button>

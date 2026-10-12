@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import PageLoader from '../components/loading/PageLoader';
 
 type AdminTab = 'library' | 'categories' | 'approvals';
 
@@ -366,6 +367,10 @@ const ToolLibrary: React.FC = () => {
     setFilterTag('');
     setFilterPricing('');
   };
+
+  if (libraryLoading && categories.length === 0 && !isFiltering) {
+    return <PageLoader />;
+  }
 
   return (
     <div className="space-y-6 p-6 text-white">

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ChatConversation, ChatPinnedMessage } from '../types';
 import { getConversationTitle, initials } from '../utils/conversation';
-import { XMarkIcon } from '../../../components/icons';
+import { MagnifyingGlassIcon, XMarkIcon } from '../../../components/icons';
 import { User } from '../../../types';
 
 type Props = {
@@ -34,6 +34,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?
 
 const MemberPanel: React.FC<Props> = ({ conversation, currentUser, open, presenceByUserId, pinnedMessages, onClose }) => {
   const [memberQuery, setMemberQuery] = useState('');
+  const memberSearchRef = useRef<HTMLInputElement | null>(null);
   const members = useMemo(() => {
     const needle = memberQuery.trim().toLowerCase();
     return (conversation?.members ?? []).filter((member) => !needle || `${member.name} ${member.email} ${member.role}`.toLowerCase().includes(needle));
@@ -50,9 +51,19 @@ const MemberPanel: React.FC<Props> = ({ conversation, currentUser, open, presenc
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-violet-600">Details</p>
           <h3 className="truncate text-base font-black text-slate-950">{title}</h3>
         </div>
-        <button type="button" aria-label="Close details" onClick={onClose} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500">
-          <XMarkIcon className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Search members"
+            onClick={() => memberSearchRef.current?.focus()}
+            className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500"
+          >
+            <MagnifyingGlassIcon className="h-5 w-5" />
+          </button>
+          <button type="button" aria-label="Close details" onClick={onClose} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500">
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -73,8 +84,8 @@ const MemberPanel: React.FC<Props> = ({ conversation, currentUser, open, presenc
         </Section>
 
         <Section title="Members">
-          <input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="Search members" className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
-          <div className="space-y-2">
+          <input ref={memberSearchRef} value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="Search members" className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
+          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
             {members.map((member) => {
               const status = presenceByUserId[member.userId] ?? 'OFFLINE';
               return (

@@ -191,9 +191,142 @@ def test_space_requires_non_blank_name(client):
     assert response.status_code == 422
 
 
-def test_cross_tenant_member_rejected(client):
+def test_privileged_user_can_start_cross_tenant_chat(client):
+    direct = client.post("/api/chat/direct", json={"user_id": "user-x"})
+    assert direct.status_code == 201
+    assert direct.json()["type"] == "DIRECT"
+    assert {member["user_id"] for member in direct.json()["members"]} == {"user-a", "user-x"}
+
+    group = client.post("/api/chat/conversations", json={"type": "GROUP", "name": "Cross Tenant Group", "member_ids": ["user-x"]})
+    assert group.status_code == 201
+    assert {member["user_id"] for member in group.json()["members"]} == {"user-a", "user-x"}
+
+
+def test_regular_user_cross_tenant_member_rejected(db, client):
+    db.get(User, "user-a").role = RoleEnum.USER
+    db.commit()
+
+    direct = client.post("/api/chat/direct", json={"user_id": "user-x"})
+    assert direct.status_code == 404
+
     response = client.post("/api/chat/conversations", json={"type": "GROUP", "name": "Bad Group", "member_ids": ["user-x"]})
     assert response.status_code == 422
+
+
+def test_chat_directory_lists_active_visible_users_and_excludes_current_and_deactivated(db, client):
+    db.get(User, "user-c").status = UserStatusEnum.DEACTIVATED
+    db.commit()
+
+    response = client.get("/api/chat/users")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["id"] for item in items] == ["user-b", "user-x"]
+    assert items[0]["presence"] == "OFFLINE"
+    assert items[0]["existing_conversation_id"] is None
+
+
+def test_regular_user_chat_directory_stays_tenant_scoped(db, client):
+    db.get(User, "user-a").role = RoleEnum.USER
+    db.commit()
+
+    response = client.get("/api/chat/users")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == ["user-b", "user-c"]
+
+
+def test_chat_directory_search_does_not_return_deactivated_accounts(db, client):
+    db.get(User, "user-c").status = UserStatusEnum.DEACTIVATED
+    db.commit()
+
+    response = client.get("/api/chat/users", params={"search": "charlie"})
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+def test_chat_directory_reports_existing_direct_conversation_and_unread_count(db, client):
+    conversation = client.post("/api/chat/direct", json={"user_id": "user-b"}).json()
+    db.add(ChatMessage(conversation_id=conversation["id"], sender_id="user-b", content="Can you check this API?"))
+    db.commit()
+
+    response = client.get("/api/chat/users", params={"search": "bravo"})
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["id"] == "user-b"
+    assert item["existing_conversation_id"] == conversation["id"]
+    assert item["unread_count"] == 1
+    assert item["latest_message_preview"] == "Can you check this API?"
+
+
+def test_rest_message_send_broadcasts_to_joined_websocket(client):
+    conversation = client.post("/api/chat/direct", json={"user_id": "user-b"}).json()
+    token = make_token("user-b")
+
+    with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        ws.send_json({"type": "chat:join", "payload": {"conversation_id": conversation["id"]}})
+        receive_until(ws, "chat:joined")
+
+        response = client.post(
+            f"/api/chat/conversations/{conversation['id']}/messages",
+            json={"content": "Live without refresh", "client_id": "client-rest-1"},
+        )
+
+        assert response.status_code == 201
+        event = receive_until(ws, "message:new")
+        assert event["payload"]["conversation_id"] == conversation["id"]
+        assert event["payload"]["client_id"] == "client-rest-1"
+        assert event["payload"]["message"]["content"] == "Live without refresh"
+
+
+def test_deactivated_user_cannot_be_new_direct_group_or_space_member(db, client):
+    db.get(User, "user-c").status = UserStatusEnum.DEACTIVATED
+    db.commit()
+
+    direct = client.post("/api/chat/direct", json={"user_id": "user-c"})
+    assert direct.status_code == 404
+
+    group = client.post("/api/chat/conversations", json={"type": "GROUP", "name": "Bad Group", "member_ids": ["user-c"]})
+    assert group.status_code == 422
+
+    space = client.post("/api/chat/conversations", json={"type": "SPACE", "name": "Bad Space", "member_ids": ["user-c"]})
+    assert space.status_code == 422
+
+
+def test_existing_direct_history_with_deactivated_user_is_preserved_but_sending_is_rejected(db, client):
+    conversation = client.post("/api/chat/direct", json={"user_id": "user-b"}).json()
+    sent = client.post(f"/api/chat/conversations/{conversation['id']}/messages", json={"content": "Before deactivation"})
+    assert sent.status_code == 201
+
+    db.get(User, "user-b").status = UserStatusEnum.DEACTIVATED
+    db.commit()
+
+    history = client.get(f"/api/chat/conversations/{conversation['id']}/messages")
+    assert history.status_code == 200
+    assert history.json()["items"][0]["content"] == "Before deactivation"
+
+    blocked = client.post(f"/api/chat/conversations/{conversation['id']}/messages", json={"content": "After deactivation"})
+    assert blocked.status_code == 409
+
+
+def test_mentions_skip_deactivated_conversation_members(db, client):
+    conversation = client.post(
+        "/api/chat/conversations",
+        json={"type": "GROUP", "name": "Mentions", "member_ids": ["user-b"], "is_private": True},
+    ).json()
+    db.get(User, "user-b").status = UserStatusEnum.DEACTIVATED
+    db.commit()
+
+    response = client.post(
+        f"/api/chat/conversations/{conversation['id']}/messages",
+        json={"content": "@bravo please check"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["mentions"] == []
+    assert db.query(MessageMention).count() == 0
 
 
 def test_message_persistence_edit_delete_and_pagination(client):

@@ -16,6 +16,7 @@ import MediaDropzone from '../components/media/MediaDropzone';
 import MediaGrid from '../components/media/MediaGrid';
 import MediaDetailsDrawer from '../components/media/MediaDetailsDrawer';
 import ProviderConnect from '../components/media/ProviderConnect';
+import PageLoader from '../components/loading/PageLoader';
 
 const CATEGORY_TABS: { key: MediaCategory; label: string; accent: string }[] = [
   { key: MediaCategory.IMAGE, label: 'Images', accent: 'from-fuchsia-500 via-pink-500 to-rose-500' },
@@ -300,6 +301,10 @@ const MediaLibraryPage: React.FC = () => {
   };
 
   const tabExtensions = useMemo(() => CATEGORY_EXTENSIONS[activeTab], [activeTab]);
+
+  if (loading && items.length === 0) {
+    return <PageLoader />;
+  }
 
   return (
     <div className="space-y-6 text-white">

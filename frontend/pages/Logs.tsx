@@ -4,6 +4,7 @@ import api from '../services/api';
 import { AuditLog, AuditRetentionConfig, CUSTOM_STATUS_NAMES, Role, TaskStatus, User } from '../types';
 import { formatDate, timeAgo } from '../utils';
 import { useAuth } from '../hooks/useAuth';
+import PageLoader from '../components/loading/PageLoader';
 
 type TabKey =
   | 'all'
@@ -301,6 +302,10 @@ const Logs: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const userMap = useMemo(() => new Map(users.map((person) => [person.id, person])), [users]);
 
+  if (loading && logs.length === 0) {
+    return <PageLoader />;
+  }
+
   return (
     <div className="space-y-6 log-arcade">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -492,7 +497,6 @@ const Logs: React.FC = () => {
       )}
 
       <section className="log-arcade-panel">
-        {loading && logs.length === 0 && <p className="text-sm text-white/60">Loading logs...</p>}
         {error && <p className="text-sm text-rose-300">{error}</p>}
         {!loading && logs.length === 0 && !error && (
           <p className="text-sm text-white/60">No logs found.</p>

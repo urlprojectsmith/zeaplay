@@ -28,6 +28,7 @@ import {
 } from '../components/icons';
 import CreateUserModal from '../components/CreateUserModal';
 import EditUserModal from '../components/EditUserModal';
+import PageLoader from '../components/loading/PageLoader';
 import ChangeRoleModal from '../components/ChangeRoleModal';
 import ResetPasswordModal from '../components/ResetPasswordModal';
 import UserStatusBadge from '../components/ui/UserStatusBadge';
@@ -1321,7 +1322,7 @@ const Users: React.FC = () => {
     };
   }, []);
 
-  if (loading) return <div className="text-center p-8">Loading users...</div>;
+  if (loading) return <PageLoader />;
 
   // Helper for dynamic toggle label/icon
   const openUser = openMenuId ? users.find(u => u.id === openMenuId) : null;

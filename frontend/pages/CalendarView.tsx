@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Task,
     User,
@@ -6,6 +7,7 @@ import {
     TaskStatus,
     RecurrenceRule,
     Role,
+    TaskCalendarDaySummary,
 } from '../types';
 import { useAuth, useTheme, useSearch } from '../hooks/useAuth';
 import api from '../services/mockApi';
@@ -13,6 +15,7 @@ import TaskDetailModal from '../components/TaskDetailModal';
 import TaskPriorityBadge from '../components/ui/TaskPriorityBadge';
 import CreateTaskModal from '../components/CreateTaskModal';
 import { PlusIcon, DocumentTextIcon, BellIcon, XMarkIcon, SparklesIcon } from '../components/icons';
+import PageLoader from '../components/loading/PageLoader';
 import GamificationService, { GamificationStats, AchievementPopup } from '../services/gamification';
 import { CUSTOM_STATUS_NAMES } from '../types';
 
@@ -23,6 +26,10 @@ type ThemeMode = 'light' | 'dark' | 'colorful' | 'professional' | 'gamified' | '
 type ResolvedTheme = 'light' | 'dark' | 'colorful' | 'professional' | 'gamified';
 type ViewMode = 'month' | 'week' | 'day';
 type QuickActionType = 'note' | 'reminder' | 'more';
+type DeadlineUrgency = 'safe' | 'soon' | 'critical' | 'overdue' | 'none';
+type TaskTimeState = 'completed' | 'overdue' | 'urgent' | 'warning' | 'safe' | 'none';
+type DateVisualState = 'empty' | 'active' | 'completed' | 'today' | 'warning' | 'urgent' | 'overdue';
+type CalendarDateSummary = ReturnType<typeof getDateTaskSummary> & { completed: number };
 
 type CalendarNote = {
     id: string;
@@ -39,16 +46,164 @@ type CalendarReminder = {
 };
 
 const resolveTheme = (theme: ThemeMode): ResolvedTheme => {
-    if (theme === 'colorful' || theme === 'gamified') return 'gamified';
-    if (theme === 'light' || theme === 'professional') return 'professional';
+    if (theme === 'colorful' || theme === 'gamified') return theme;
+    if (theme === 'light' || theme === 'professional') return theme;
     if (theme === 'dark') return 'dark';
     if (typeof window !== 'undefined') {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'professional';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     return 'dark';
 };
 
 const getDateKey = (date: Date) => date.toISOString().split('T')[0];
+const isTaskCompleted = (task: Task) => task.status === TaskStatus.DONE;
+
+const getTaskTimeState = (task: Task, now = new Date()): TaskTimeState => {
+    if (isTaskCompleted(task)) return 'completed';
+    if (!task.dueAt) return 'none';
+    const dueTime = new Date(task.dueAt).getTime();
+    if (Number.isNaN(dueTime)) return 'none';
+    const hoursRemaining = (dueTime - now.getTime()) / 36e5;
+    if (hoursRemaining < 0) return 'overdue';
+    if (hoursRemaining <= 24) return 'urgent';
+    if (hoursRemaining <= 72) return 'warning';
+    return 'safe';
+};
+
+const getDateVisualState = (tasks: Task[], date: Date, now = new Date()): DateVisualState => {
+    const todayKey = getDateKey(now);
+    const dateKey = getDateKey(date);
+    if (tasks.length === 0) return dateKey === todayKey ? 'today' : 'empty';
+
+    const taskStates = tasks.map((task) => getTaskTimeState(task, now));
+    if (taskStates.includes('overdue')) return 'overdue';
+    if (taskStates.includes('urgent')) return 'urgent';
+    if (taskStates.includes('warning')) return 'warning';
+    if (dateKey === todayKey) return 'today';
+    if (taskStates.every((state) => state === 'completed')) return 'completed';
+    return 'active';
+};
+
+const getCalendarThemeClasses = (theme: ResolvedTheme) => {
+    if (theme === 'dark') {
+        return {
+            page: 'calendar-page calendar-page-dark',
+            panel: 'calendar-glass-panel calendar-glass-panel-dark',
+            field: 'calendar-field calendar-field-dark',
+            button: 'calendar-control-button calendar-control-button-dark',
+            activeButton: 'calendar-control-button calendar-control-button-active',
+            heading: 'text-white',
+            muted: 'text-slate-300/80',
+            weekday: 'calendar-weekday calendar-weekday-dark',
+            dateBadge: 'calendar-date-badge calendar-date-badge-dark',
+            countChip: 'calendar-count-chip calendar-count-chip-dark',
+            hotChip: 'calendar-hot-chip calendar-hot-chip-dark',
+            empty: 'calendar-empty-summary calendar-empty-summary-dark',
+        };
+    }
+    if (theme === 'colorful' || theme === 'gamified') {
+        return {
+            page: 'calendar-page calendar-page-colorful',
+            panel: 'calendar-glass-panel calendar-glass-panel-colorful',
+            field: 'calendar-field calendar-field-colorful',
+            button: 'calendar-control-button calendar-control-button-colorful',
+            activeButton: 'calendar-control-button calendar-control-button-active',
+            heading: 'text-slate-950',
+            muted: 'text-slate-600',
+            weekday: 'calendar-weekday calendar-weekday-colorful',
+            dateBadge: 'calendar-date-badge calendar-date-badge-colorful',
+            countChip: 'calendar-count-chip calendar-count-chip-colorful',
+            hotChip: 'calendar-hot-chip calendar-hot-chip-colorful',
+            empty: 'calendar-empty-summary calendar-empty-summary-colorful',
+        };
+    }
+    return {
+        page: 'calendar-page calendar-page-light',
+        panel: 'calendar-glass-panel calendar-glass-panel-light',
+        field: 'calendar-field calendar-field-light',
+        button: 'calendar-control-button calendar-control-button-light',
+        activeButton: 'calendar-control-button calendar-control-button-active',
+        heading: 'text-slate-950',
+        muted: 'text-slate-600',
+        weekday: 'calendar-weekday calendar-weekday-light',
+        dateBadge: 'calendar-date-badge calendar-date-badge-light',
+        countChip: 'calendar-count-chip calendar-count-chip-light',
+        hotChip: 'calendar-hot-chip calendar-hot-chip-light',
+        empty: 'calendar-empty-summary calendar-empty-summary-light',
+    };
+};
+
+const priorityOrder: Record<TaskPriority, number> = {
+    [TaskPriority.URGENT]: 0,
+    [TaskPriority.HIGH]: 1,
+    [TaskPriority.MEDIUM]: 2,
+    [TaskPriority.LOW]: 3,
+};
+
+const getDeadlineUrgency = (task: Task, now = new Date()): DeadlineUrgency => {
+    const timeState = getTaskTimeState(task, now);
+    if (timeState === 'overdue') return 'overdue';
+    if (timeState === 'urgent') return 'critical';
+    if (timeState === 'warning') return 'soon';
+    if (timeState === 'safe') return 'safe';
+    return 'none';
+};
+
+const getPriorityCounts = (tasks: Task[]) => ({
+    low: tasks.filter((task) => task.priority === TaskPriority.LOW).length,
+    medium: tasks.filter((task) => task.priority === TaskPriority.MEDIUM).length,
+    high: tasks.filter((task) => task.priority === TaskPriority.HIGH).length,
+    urgent: tasks.filter((task) => task.priority === TaskPriority.URGENT).length,
+});
+
+const getStatusLabel = (status: TaskStatus) => {
+    const custom = CUSTOM_STATUS_NAMES[status];
+    if (typeof custom === 'string') return custom;
+    if (custom && typeof custom === 'object' && 'name' in custom) return custom.name;
+    return status.replace(/_/g, ' ');
+};
+
+const getDateTaskSummary = (tasks: Task[], now = new Date()) => {
+    const urgency = tasks.reduce<Record<DeadlineUrgency, number>>((acc, task) => {
+        acc[getDeadlineUrgency(task, now)] += 1;
+        return acc;
+    }, { safe: 0, soon: 0, critical: 0, overdue: 0, none: 0 });
+    return {
+        total: tasks.length,
+        completed: tasks.filter((task) => isTaskCompleted(task)).length,
+        priority: getPriorityCounts(tasks),
+        urgency,
+    };
+};
+
+const mapCalendarDaySummary = (day: TaskCalendarDaySummary): CalendarDateSummary => ({
+    total: day.total,
+    completed: day.completed,
+    priority: {
+        low: day.low,
+        medium: day.medium,
+        high: day.high,
+        urgent: day.urgent,
+    },
+    urgency: {
+        safe: Math.max(0, day.total - day.completed - day.overdue - day.dueSoon),
+        soon: day.dueSoon,
+        critical: 0,
+        overdue: day.overdue,
+        none: 0,
+    },
+});
+
+const getVisualStateFromSummary = (summary: CalendarDateSummary, date: Date, now = new Date()): DateVisualState => {
+    if (summary.total === 0) return getDateKey(date) === getDateKey(now) ? 'today' : 'empty';
+    if (summary.urgency.overdue > 0) return 'overdue';
+    if (summary.priority.urgent > 0 || summary.urgency.critical > 0) return 'urgent';
+    if (summary.urgency.soon > 0) return 'warning';
+    if (getDateKey(date) === getDateKey(now)) return 'today';
+    if (summary.completed >= summary.total) return 'completed';
+    return 'active';
+};
+
 const startOfWeek = (date: Date) => {
     const clone = new Date(date);
     const diff = clone.getDay();
@@ -96,20 +251,25 @@ const createLightweightId = () => `${Date.now().toString(36)}-${Math.random().to
 
 const CalendarView: React.FC = () => {
     const { user } = useAuth() as { user: User | null };
+    const queryClient = useQueryClient();
     const { theme } = useTheme();
     const resolvedTheme = resolveTheme(theme as ThemeMode);
     const isDark = resolvedTheme === 'dark';
     const isColorful = resolvedTheme === 'colorful';
     const isGamified = resolvedTheme === 'gamified';
-    const isProfessional = resolvedTheme === 'professional';
+    const isProfessional = resolvedTheme === 'professional' || resolvedTheme === 'light';
+    const calendarTheme = useMemo(() => getCalendarThemeClasses(resolvedTheme), [resolvedTheme]);
 
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [calendarSummaryDays, setCalendarSummaryDays] = useState<TaskCalendarDaySummary[]>([]);
     const [usersMap, setUsersMap] = useState<Map<string, User>>(new Map());
     const [loading, setLoading] = useState(true);
 
     const [viewMode, setViewMode] = useState<ViewMode>('month');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+    const [selectedPreviewTaskId, setSelectedPreviewTaskId] = useState<string | null>(null);
 
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -269,28 +429,134 @@ const CalendarView: React.FC = () => {
     //     setQuickAddPriority(TaskPriority.MEDIUM);
     // };
 
-    const fetchData = useCallback(async () => {
-        if (!user) return;
-        setLoading(true);
-        try {
-            const [fetchedTasks, allUsers] = await Promise.all([
-                api.getTasks(user.id, user.role),
-                api.getUsers(),
-            ]);
-            setTasks(fetchedTasks);
-            const map = new Map<string, User>();
-            allUsers.forEach((u) => map.set(u.id, u));
-            setUsersMap(map);
-        } catch (error) {
-            console.error('Failed to fetch calendar data:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [user]);
+    const daysInView = useMemo(() => getRangeForView(viewMode, currentDate), [viewMode, currentDate]);
+    const visibleRange = useMemo(() => {
+        const start = daysInView[0] ?? new Date();
+        const end = daysInView[daysInView.length - 1] ?? start;
+        return { startKey: getDateKey(start), endKey: getDateKey(end) };
+    }, [daysInView]);
+    const calendarQueryParams = useMemo(() => ({
+        search: searchTerm.trim() || undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        priority: priorityFilter !== 'ALL' ? priorityFilter : undefined,
+        assigneeId: assigneeFilter === 'ME' ? user?.id : assigneeFilter !== 'ALL' ? assigneeFilter : undefined,
+        team: teamFilter || undefined,
+        tag: tagFilter || undefined,
+        dueDate: dueDateFilter || undefined,
+        createdDate: creationDateFilter || undefined,
+        quickFilter: quickFilter || undefined,
+    }), [assigneeFilter, creationDateFilter, dueDateFilter, priorityFilter, quickFilter, searchTerm, statusFilter, tagFilter, teamFilter, user?.id]);
+
+    const summaryQueryKey = useMemo(
+        () => ['tasks', 'calendar', 'summary', visibleRange.startKey, visibleRange.endKey, calendarQueryParams] as const,
+        [calendarQueryParams, visibleRange.endKey, visibleRange.startKey],
+    );
+    const visibleTasksQueryKey = useMemo(
+        () => ['tasks', 'calendar', 'range-tasks', visibleRange.startKey, visibleRange.endKey, calendarQueryParams] as const,
+        [calendarQueryParams, visibleRange.endKey, visibleRange.startKey],
+    );
+
+    const calendarSummaryQuery = useQuery({
+        queryKey: summaryQueryKey,
+        queryFn: ({ signal }) => api.getTaskCalendarSummary({
+            startDate: visibleRange.startKey,
+            endDate: visibleRange.endKey,
+            ...calendarQueryParams,
+            signal,
+        }),
+        enabled: Boolean(user),
+        staleTime: 60_000,
+        placeholderData: keepPreviousData,
+    });
+
+    const visibleTasksQuery = useQuery({
+        queryKey: visibleTasksQueryKey,
+        queryFn: ({ signal }) => api.getTaskCalendarTasks({
+            startDate: visibleRange.startKey,
+            endDate: visibleRange.endKey,
+            ...calendarQueryParams,
+            signal,
+        }),
+        enabled: Boolean(user) && viewMode !== 'month',
+        staleTime: 30_000,
+        placeholderData: keepPreviousData,
+    });
+
+    const usersQuery = useQuery({
+        queryKey: ['users', 'calendar'],
+        queryFn: () => api.getUsers(),
+        enabled: Boolean(user),
+        staleTime: 60_000,
+        placeholderData: keepPreviousData,
+    });
+
+    const fetchData = useCallback(() => {
+        void queryClient.invalidateQueries({ queryKey: ['tasks', 'calendar'] });
+    }, [queryClient]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (calendarSummaryQuery.data) {
+            setCalendarSummaryDays(calendarSummaryQuery.data.days);
+        }
+    }, [calendarSummaryQuery.data]);
+
+    useEffect(() => {
+        if (viewMode === 'month') {
+            setTasks([]);
+            return;
+        }
+        if (visibleTasksQuery.data) {
+            setTasks(visibleTasksQuery.data);
+        }
+    }, [viewMode, visibleTasksQuery.data]);
+
+    useEffect(() => {
+        if (!usersQuery.data) return;
+        const map = new Map<string, User>();
+        usersQuery.data.forEach((u) => map.set(u.id, u));
+        setUsersMap(map);
+    }, [usersQuery.data]);
+
+    useEffect(() => {
+        const isInitialLoading = Boolean(user) && (
+            calendarSummaryQuery.isLoading ||
+            usersQuery.isLoading ||
+            (viewMode !== 'month' && visibleTasksQuery.isLoading)
+        );
+        setLoading(isInitialLoading);
+    }, [calendarSummaryQuery.isLoading, user, usersQuery.isLoading, viewMode, visibleTasksQuery.isLoading]);
+
+    useEffect(() => {
+        const error = calendarSummaryQuery.error || visibleTasksQuery.error || usersQuery.error;
+        if (error) {
+            console.error('Failed to fetch calendar data:', error);
+        }
+    }, [calendarSummaryQuery.error, usersQuery.error, visibleTasksQuery.error]);
+
+    useEffect(() => {
+        if (!user || viewMode !== 'month') return;
+        const preload = (monthOffset: number) => {
+            const adjacentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + monthOffset, 1);
+            const adjacentDays = getRangeForView('month', adjacentDate);
+            const start = adjacentDays[0];
+            const end = adjacentDays[adjacentDays.length - 1];
+            if (!start || !end) return;
+            const startDate = getDateKey(start);
+            const endDate = getDateKey(end);
+            void queryClient.prefetchQuery({
+                queryKey: ['tasks', 'calendar', 'summary', startDate, endDate, calendarQueryParams],
+                queryFn: ({ signal }) => api.getTaskCalendarSummary({
+                    startDate,
+                    endDate,
+                    ...calendarQueryParams,
+                    signal,
+                }),
+                staleTime: 60_000,
+            });
+        };
+        preload(-1);
+        preload(1);
+    }, [calendarQueryParams, currentDate, queryClient, user, viewMode]);
 
     // Update gamification stats when tasks or user changes
     useEffect(() => {
@@ -299,68 +565,9 @@ const CalendarView: React.FC = () => {
         setGamificationStats(stats);
     }, [tasks, user]);
 
-    const filteredTasks = useMemo(() => {
-        let filtered: Task[] = tasks;
-
-        // Apply search
-        const term = searchTerm.trim().toLowerCase();
-        if (term) {
-            filtered = filtered.filter((task) => {
-                const assigneeNames = (task.assignedTo ?? [])
-                    .map((id) => usersMap.get(id)?.name?.toLowerCase() || '')
-                    .filter((name) => name !== '');
-                const matchesAssignee = assigneeNames.some(name => name.includes(term));
-                return (
-                    task.title.toLowerCase().includes(term) ||
-                    task.description.toLowerCase().includes(term) ||
-                    task.team.toLowerCase().includes(term) ||
-                    matchesAssignee ||
-                    (task.tags && task.tags.some(tag => tag.toLowerCase().includes(term)))
-                );
-            });
-        }
-
-        // Apply filters
-        if (priorityFilter !== 'ALL') {
-            filtered = filtered.filter((task) => task.priority === priorityFilter);
-        }
-        if (statusFilter !== 'ALL') {
-            filtered = filtered.filter((task) => task.status === statusFilter);
-        }
-        if (assigneeFilter === 'ME' && user) {
-            filtered = filtered.filter((task) => task.assignedTo?.includes(user.id));
-        } else if (assigneeFilter !== 'ALL' && assigneeFilter !== 'ME') {
-            filtered = filtered.filter((task) => task.assignedTo?.includes(assigneeFilter));
-        }
-        if (teamFilter) {
-            filtered = filtered.filter((task) => task.team === teamFilter);
-        }
-        if (tagFilter) {
-            const tagFilterLower = tagFilter.toLowerCase();
-            filtered = filtered.filter((task) => task.tags && task.tags.some(tag => tag.toLowerCase().includes(tagFilterLower)));
-        }
-        if (dueDateFilter) {
-            filtered = filtered.filter((task) => task.dueAt && new Date(task.dueAt).toDateString() === new Date(dueDateFilter).toDateString());
-        }
-        if (creationDateFilter) {
-            filtered = filtered.filter((task) => task.createdAt && new Date(task.createdAt).toDateString() === new Date(creationDateFilter).toDateString());
-        }
-
-        // Apply quick filters
-        if (quickFilter === 'myTasks') {
-            filtered = filtered.filter((task) => (user?.id ? task.assignedTo?.includes(user.id) : false));
-        } else if (quickFilter === 'overdue') {
-            filtered = filtered.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < Date.now());
-        } else if (quickFilter === 'completed') {
-            filtered = filtered.filter((task) => task.status === TaskStatus.DONE);
-        }
-
-        return filtered;
-    }, [tasks, searchTerm, usersMap, priorityFilter, statusFilter, assigneeFilter, teamFilter, tagFilter, dueDateFilter, creationDateFilter, quickFilter, user?.id]);
-
     const tasksByDate = useMemo(() => {
         const map = new Map<string, Task[]>();
-        filteredTasks.forEach((task) => {
+        tasks.forEach((task) => {
             if (!task.dueAt) {
                 return;
             }
@@ -371,7 +578,28 @@ const CalendarView: React.FC = () => {
             map.get(dateKey)!.push(task);
         });
         return map;
-    }, [filteredTasks]);
+    }, [tasks]);
+
+    const dateSummaries = useMemo(() => {
+        const map = new Map<string, CalendarDateSummary>();
+        calendarSummaryDays.forEach((day) => {
+            map.set(day.date, mapCalendarDaySummary(day));
+        });
+        return map;
+    }, [calendarSummaryDays]);
+
+    const selectedDate = selectedDateKey ? new Date(`${selectedDateKey}T00:00:00`) : null;
+    const selectedDayTasks = useMemo(() => {
+        if (!selectedDateKey) return [];
+        return [...(tasksByDate.get(selectedDateKey) ?? [])].sort((a, b) => {
+            const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+            if (priorityDiff !== 0) return priorityDiff;
+            return new Date(a.dueAt ?? 0).getTime() - new Date(b.dueAt ?? 0).getTime();
+        });
+    }, [selectedDateKey, tasksByDate]);
+    const selectedPreviewTask = useMemo(() => (
+        selectedDayTasks.find((task) => task.id === selectedPreviewTaskId) ?? selectedDayTasks[0] ?? null
+    ), [selectedDayTasks, selectedPreviewTaskId]);
 
     useEffect(() => {
         if (!user) {
@@ -384,7 +612,7 @@ const CalendarView: React.FC = () => {
         const tomorrowEnd = new Date(tomorrowStart);
         tomorrowEnd.setHours(23, 59, 59, 999);
 
-        filteredTasks.forEach((task) => {
+        tasks.forEach((task) => {
             if (!task.dueAt) return;
             if (reminderSentRef.current.has(task.id)) return;
             const dueDate = new Date(task.dueAt);
@@ -406,7 +634,7 @@ const CalendarView: React.FC = () => {
                 logActivity(`Reminder scheduled for "${task.title}" (due tomorrow)`);
             }
         });
-    }, [filteredTasks, user, logActivity]);
+    }, [tasks, user, logActivity]);
 
     const workloadHeat = useMemo(() => {
         const counts = new Map<string, number>();
@@ -419,14 +647,13 @@ const CalendarView: React.FC = () => {
 
     const conflictDates = useMemo(() => {
         const conflicts = new Set<string>();
-        tasksByDate.forEach((taskList, dateKey) => {
-            const critical = taskList.filter((task) => task.priority === TaskPriority.URGENT);
-            if (critical.length > 1) {
+        dateSummaries.forEach((summary, dateKey) => {
+            if (summary.priority.urgent > 1) {
                 conflicts.add(dateKey);
             }
         });
         return conflicts;
-    }, [tasksByDate]);
+    }, [dateSummaries]);
 
     const handlePrev = () => {
         if (viewMode === 'month') {
@@ -464,6 +691,38 @@ const CalendarView: React.FC = () => {
         setSelectedTaskId(taskId);
     };
 
+    const openDateDrawer = async (date: Date) => {
+        const dateKey = getDateKey(date);
+        setSelectedDateKey(dateKey);
+        setSelectedPreviewTaskId(tasksByDate.get(dateKey)?.[0]?.id ?? null);
+        setActiveQuickActionsDay(null);
+        if (!tasksByDate.has(dateKey)) {
+            try {
+                const dayTasks = await queryClient.fetchQuery({
+                    queryKey: ['tasks', 'calendar', 'date-tasks', dateKey, calendarQueryParams],
+                    queryFn: ({ signal }) => api.getTaskCalendarTasks({
+                        startDate: dateKey,
+                        ...calendarQueryParams,
+                        signal,
+                    }),
+                    staleTime: 30_000,
+                });
+                setTasks((prev) => {
+                    const withoutDate = prev.filter((task) => !task.dueAt || getDateKey(new Date(task.dueAt)) !== dateKey);
+                    return [...withoutDate, ...dayTasks];
+                });
+                setSelectedPreviewTaskId(dayTasks[0]?.id ?? null);
+            } catch (error) {
+                console.error('Failed to fetch day tasks:', error);
+            }
+        }
+    };
+
+    const closeDateDrawer = () => {
+        setSelectedDateKey(null);
+        setSelectedPreviewTaskId(null);
+    };
+
     const closeTaskModal = () => {
         setSelectedTaskId(null);
         fetchData();
@@ -471,6 +730,7 @@ const CalendarView: React.FC = () => {
 
     const handleTaskDeleted = (_taskId: string) => {
         setSelectedTaskId(null);
+        fetchData();
     };
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
@@ -488,6 +748,7 @@ const CalendarView: React.FC = () => {
         try {
             setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, dueAt: iso } : task)));
             await api.updateTask(taskId, { dueAt: iso }, user.id);
+            fetchData();
             if (movedTask) {
                 logActivity(`Moved "${movedTask.title}" to ${new Date(date).toLocaleDateString()}`);
             }
@@ -673,7 +934,7 @@ const CalendarView: React.FC = () => {
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
             const rangeFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-            return `${rangeFormat.format(weekStart)} � ${rangeFormat.format(weekEnd)} ${weekEnd.getFullYear()}`;
+            return `${rangeFormat.format(weekStart)} - ${rangeFormat.format(weekEnd)} ${weekEnd.getFullYear()}`;
         }
         return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(currentDate);
     };
@@ -694,16 +955,14 @@ const CalendarView: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         onClick={() => handleTaskClick(task.id)}
-                        className={`group rounded-2xl border border-white/15 bg-white/10 p-3 text-left text-sm text-white shadow-[0_12px_30px_rgba(15,23,42,0.45)] transition hover:-translate-y-1 hover:border-white/40 hover:bg-white/15 ${
-                            resolvedTheme === 'professional' ? 'task-card-professional' : 'task-card-gamified'
-                        }`}
+                        className="calendar-task-card group rounded-2xl border p-3 text-left text-sm transition"
                     >
                         <div className="flex items-center justify-between gap-2">
-                            <p className="flex-1 truncate font-semibold text-white group-hover:text-amber-200">{task.title}</p>
+                            <p className="calendar-task-title flex-1 truncate font-semibold">{task.title}</p>
                             <TaskPriorityBadge priority={task.priority} />
                         </div>
-                        <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
-                            <div className="h-6 w-6 rounded-full bg-white/20 text-center text-[10px] font-semibold leading-6 text-white">
+                        <div className="calendar-task-meta mt-2 flex items-center gap-2 text-xs">
+                            <div className="calendar-task-avatar h-6 w-6 rounded-full text-center text-[10px] font-semibold leading-6">
                                 {(() => {
                                     if (assignees.length === 0) return '??';
                                     if (assignees.length === 1) {
@@ -716,14 +975,14 @@ const CalendarView: React.FC = () => {
                                 })()}
                             </div>
                             <span>{task.status.replace(/_/g, ' ').toLowerCase()}</span>
-                            {task.tags && task.tags.length > 0 && <span>� {task.tags[0]}</span>}
+                            {task.tags && task.tags.length > 0 && <span>/ {task.tags[0]}</span>}
                         </div>
                         {progress !== null && (
                             <div className="mt-2">
-                                <div className="h-1.5 w-full rounded-full bg-white/20">
+                                <div className="calendar-task-progress-track h-1.5 w-full rounded-full">
                                     <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-teal-300 to-sky-300" style={{ width: `${progress}%` }} />
                                 </div>
-                                <p className="mt-1 text-[10px] text-white/60">Progress {progress}%</p>
+                                <p className="calendar-task-progress-label mt-1 text-[10px]">Progress {progress}%</p>
                             </div>
                         )}
                     </div>
@@ -731,28 +990,70 @@ const CalendarView: React.FC = () => {
             });
     };
 
+    const renderMonthSummary = (dateKey: string) => {
+        const summary = dateSummaries.get(dateKey) ?? getDateTaskSummary([]);
+        if (summary.total === 0) {
+            return (
+                <div className={`mt-2 flex flex-1 items-center justify-center rounded-xl border border-dashed text-xs ${calendarTheme.empty}`}>
+                    No tasks
+                </div>
+            );
+        }
+        const priorityRows = [
+            { label: 'Overdue', value: summary.urgency.overdue, tone: 'overdue' },
+            { label: 'Urgent', value: summary.priority.urgent, tone: 'urgent' },
+            { label: 'High', value: summary.priority.high, tone: 'high' },
+            { label: 'Medium', value: summary.priority.medium, tone: 'medium' },
+            { label: 'Low', value: summary.priority.low, tone: 'low' },
+        ].filter((row) => row.value > 0);
+        const urgencyRows = [
+            { label: 'Due soon', value: summary.urgency.critical + summary.urgency.soon, tone: 'warning' },
+            { label: 'Safe', value: summary.urgency.safe, tone: 'safe' },
+        ].filter((row) => row.value > 0);
+
+        return (
+            <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-visible">
+                <div className="grid shrink-0 grid-cols-2 gap-1">
+                    {priorityRows.map((row) => (
+                        <span key={row.label} data-chip-tone={row.tone} className="calendar-priority-chip inline-flex min-w-0 items-center justify-between gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold">
+                            <span className="truncate">{row.label}</span>
+                            <span className="shrink-0">{row.value}</span>
+                        </span>
+                    ))}
+                </div>
+                <div className="flex min-h-0 flex-wrap gap-1 overflow-hidden">
+                    {urgencyRows.slice(0, 3).map((row) => (
+                        <span key={row.label} data-chip-tone={row.tone} className="calendar-status-chip rounded-full px-2 py-0.5 text-[10px] font-bold">
+                            {row.label}: {row.value}
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
     const renderCells = () => {
-        const daysInView = getRangeForView(viewMode, currentDate);
         const todayKey = getDateKey(new Date());
         const month = currentDate.getMonth();
         const isMonth = viewMode === 'month';
+        const now = new Date();
 
         const rows: React.JSX.Element[] = [];
         const cells: React.JSX.Element[] = [];
         daysInView.forEach((day, index) => {
             const dateKey = getDateKey(day);
-            const heatCount = workloadHeat.counts.get(dateKey) || 0;
-            const heatIntensity = workloadHeat.max > 0 ? heatCount / workloadHeat.max : 0;
-            const heatColor = heatIntensity === 0 ? 'transparent' : `rgba(244,114,182, ${Math.min(0.6, 0.15 + heatIntensity * 0.5)})`;
             const inCurrentMonth = day.getMonth() === month;
             const isConflict = conflictDates.has(dateKey);
+            const summary = dateSummaries.get(dateKey) ?? getDateTaskSummary([]);
+            const isSelected = selectedDateKey === dateKey;
+            const urgentTotal = summary.priority.urgent + summary.priority.high;
+            const visualState = getVisualStateFromSummary(summary, day, now);
+            const isToday = dateKey === todayKey;
 
             const isQuickActionsOpen = activeQuickActionsDay === dateKey;
             const dateNotes = notesByDate[dateKey] ?? [];
             const dateReminders = remindersByDate[dateKey] ?? [];
-            const dateBadgeBase = `ml-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                dateKey === todayKey ? 'bg-gradient-to-r from-sky-400 to-violet-400 text-slate-900' : 'bg-white/15 text-white'
-            }`;
+            const dateBadgeBase = `${calendarTheme.dateBadge} ${isToday ? 'calendar-date-badge-today' : ''}`;
             const quickActionButtonStyles = isDark
                 ? 'border-white/15 bg-white/10 text-white/70 hover:border-white/50 hover:text-white'
                 : isColorful
@@ -778,12 +1079,19 @@ const CalendarView: React.FC = () => {
             const cell = (
                 <div
                     key={dateKey}
-                    className={`relative flex h-full min-h-[160px] flex-col gap-2 rounded-2xl border border-white/10 p-3 backdrop-blur transition ${
-                        inCurrentMonth ? 'bg-white/5 hover:bg-white/10' : 'bg-white/3 text-white/60'
-                    } ${isConflict ? 'ring-2 ring-rose-400/60' : ''} ${isQuickActionsOpen ? 'z-[55]' : 'z-auto'} ${
-                        resolvedTheme === 'professional' ? 'calendar-cell-professional' : 'calendar-cell-gamified'
-                    }`}
-                    style={{ backgroundColor: inCurrentMonth ? heatColor : undefined }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openDateDrawer(day)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openDateDrawer(day);
+                        }
+                    }}
+                    data-date-state={visualState}
+                    data-outside-month={!inCurrentMonth}
+                    data-today={isToday}
+                    className={`calendar-day-card relative flex ${isMonth ? 'h-[190px] min-h-[190px]' : 'h-full min-h-[190px]'} cursor-pointer flex-col gap-2 rounded-2xl p-3 ${isConflict ? 'calendar-day-conflict' : ''} ${isSelected ? 'calendar-day-selected' : ''} ${isQuickActionsOpen ? 'z-[55]' : 'z-auto'}`}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, day)}
                 >
@@ -802,7 +1110,10 @@ const CalendarView: React.FC = () => {
                         {canCreateTasks ? (
                             <button
                                 type="button"
-                                onClick={() => openCreateModal(day)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    openCreateModal(day);
+                                }}
                                 className={`${dateBadgeBase} cursor-pointer transition hover:scale-105`}
                                 aria-label={`Schedule task for ${day.toDateString()}`}
                             >
@@ -858,9 +1169,21 @@ const CalendarView: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                        {renderTasksForDate(day)}
-                    </div>
+                    {isMonth ? (
+                        <>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className={`${calendarTheme.countChip} rounded-full px-2 py-0.5 text-[11px] font-black`}>
+                                    {summary.total} {summary.total === 1 ? 'Task' : 'Tasks'}
+                                </span>
+                                {urgentTotal > 0 && <span className={`${calendarTheme.hotChip} rounded-full px-2 py-0.5 text-[10px] font-black`}>{urgentTotal} hot</span>}
+                            </div>
+                            {renderMonthSummary(dateKey)}
+                        </>
+                    ) : (
+                        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                            {renderTasksForDate(day)}
+                        </div>
+                    )}
 
                     {(dateNotes.length > 0 || dateReminders.length > 0) && (
                         <div className="mt-1 space-y-1 text-[11px]">
@@ -907,7 +1230,7 @@ const CalendarView: React.FC = () => {
         });
 
         if (viewMode === 'month') {
-            return <div className="space-y-3">{rows}</div>;
+            return <div className="space-y-3 overflow-x-auto pb-2"><div className="min-w-[980px] space-y-3">{rows}</div></div>;
         }
 
         if (viewMode === 'week') {
@@ -945,6 +1268,140 @@ const CalendarView: React.FC = () => {
 
     const notesForModal = quickActionContext ? [...(notesByDate[quickActionContext.dateKey] ?? [])] : [];
     const remindersForModal = quickActionContext ? [...(remindersByDate[quickActionContext.dateKey] ?? [])] : [];
+
+    const drawerSurface = isDark
+        ? 'border-white/15 bg-slate-950/95 text-white'
+        : isGamified
+            ? 'border-violet-200 bg-white/95 text-slate-950 shadow-2xl'
+            : 'border-sky-100 bg-white text-slate-950 shadow-2xl';
+    const drawerMutedText = isDark ? 'text-white/60' : 'text-slate-500';
+    const drawerCard = isDark
+        ? 'border-white/10 bg-white/5 hover:border-cyan-300/50 hover:bg-white/10'
+        : isGamified
+            ? 'border-violet-100 bg-violet-50/60 hover:border-violet-300 hover:bg-white'
+            : 'border-sky-100 bg-sky-50/70 hover:border-sky-300 hover:bg-white';
+    const getUrgencyVisuals = (urgency: DeadlineUrgency) => {
+        if (urgency === 'overdue') return { label: 'Overdue', className: 'border-red-500 bg-red-500/15 text-red-100', dot: 'bg-red-500' };
+        if (urgency === 'critical') return { label: 'Critical', className: 'border-red-400 bg-red-500/10 text-red-100', dot: 'bg-red-400' };
+        if (urgency === 'soon') return { label: 'Due soon', className: 'border-orange-400 bg-orange-500/10 text-orange-100', dot: 'bg-orange-400' };
+        if (urgency === 'safe') return { label: 'Healthy', className: 'border-emerald-400 bg-emerald-500/10 text-emerald-100', dot: 'bg-emerald-400' };
+        return { label: 'No due time', className: 'border-slate-400 bg-slate-500/10 text-slate-200', dot: 'bg-slate-400' };
+    };
+    const selectedDaySummary = getDateTaskSummary(selectedDayTasks);
+    const dateDetailsDrawer = selectedDateKey && selectedDate ? (
+        <div className="fixed inset-0 z-[115] bg-slate-950/60 backdrop-blur-sm" onClick={closeDateDrawer}>
+            <aside
+                className={`absolute right-0 top-0 flex h-full w-full max-w-5xl flex-col border-l ${drawerSurface}`}
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-start justify-between gap-4 border-b border-current/10 px-6 py-5">
+                    <div>
+                        <p className={`text-xs font-black uppercase tracking-[0.24em] ${drawerMutedText}`}>Mission Day</p>
+                        <h2 className="mt-1 text-2xl font-black">
+                            {new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(selectedDate)}
+                        </h2>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                            <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-cyan-200">{selectedDaySummary.total} tasks</span>
+                            <span className="rounded-full bg-red-500/15 px-3 py-1 text-red-200">{selectedDaySummary.urgency.overdue} overdue</span>
+                            <span className="rounded-full bg-orange-500/15 px-3 py-1 text-orange-200">{selectedDaySummary.urgency.critical + selectedDaySummary.urgency.soon} due soon</span>
+                            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-emerald-200">{selectedDaySummary.urgency.safe} safe</span>
+                        </div>
+                    </div>
+                    <button type="button" onClick={closeDateDrawer} className="rounded-full border border-current/15 p-2 transition hover:bg-current/10" aria-label="Close day details">
+                        <XMarkIcon className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="min-h-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-black uppercase tracking-[0.18em]">Tasks</h3>
+                            {canCreateTasks && (
+                                <button type="button" onClick={() => openCreateModal(selectedDate)} className="rounded-full bg-gradient-to-r from-sky-400 to-violet-400 px-3 py-1.5 text-xs font-black text-slate-950">
+                                    Add task
+                                </button>
+                            )}
+                        </div>
+                        {selectedDayTasks.length === 0 ? (
+                            <div className={`rounded-2xl border border-dashed p-8 text-center text-sm ${drawerMutedText}`}>
+                                No tasks scheduled for this date.
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {selectedDayTasks.map((task) => {
+                                    const assignees = task.assignedTo ? task.assignedTo.map((id) => usersMap.get(id)).filter(Boolean) : [];
+                                    const urgency = getUrgencyVisuals(getDeadlineUrgency(task));
+                                    return (
+                                        <button
+                                            key={task.id}
+                                            type="button"
+                                            onClick={() => setSelectedPreviewTaskId(task.id)}
+                                            className={`w-full rounded-2xl border p-3 text-left transition ${drawerCard} ${selectedPreviewTask?.id === task.id ? 'ring-2 ring-cyan-300/70' : ''}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-black">{task.title}</p>
+                                                    <p className={`mt-1 truncate text-xs ${drawerMutedText}`}>
+                                                        {assignees.map((assignee) => assignee!.name).join(', ') || 'Unassigned'} / {task.team || 'No squad'}
+                                                    </p>
+                                                </div>
+                                                <TaskPriorityBadge priority={task.priority} />
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                                                <span className="rounded-full border border-current/15 px-2 py-0.5">{getStatusLabel(task.status)}</span>
+                                                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${urgency.className}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${urgency.dot}`} />
+                                                    {urgency.label}
+                                                </span>
+                                                {task.dueAt && <span className={drawerMutedText}>{new Date(task.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className={`rounded-2xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-sky-100 bg-white/80'}`}>
+                        {selectedPreviewTask ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <p className={`text-xs font-black uppercase tracking-[0.18em] ${drawerMutedText}`}>Preview</p>
+                                    <h3 className="mt-2 text-xl font-black">{selectedPreviewTask.title}</h3>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <span className="rounded-xl border border-current/10 px-3 py-2">Priority<br /><b>{selectedPreviewTask.priority}</b></span>
+                                    <span className="rounded-xl border border-current/10 px-3 py-2">Status<br /><b>{getStatusLabel(selectedPreviewTask.status)}</b></span>
+                                    <span className="rounded-xl border border-current/10 px-3 py-2">Squad<br /><b>{selectedPreviewTask.team || 'None'}</b></span>
+                                    <span className="rounded-xl border border-current/10 px-3 py-2">Due<br /><b>{selectedPreviewTask.dueAt ? new Date(selectedPreviewTask.dueAt).toLocaleString() : 'None'}</b></span>
+                                </div>
+                                <p className={`whitespace-pre-wrap text-sm leading-6 ${drawerMutedText}`}>
+                                    {selectedPreviewTask.description || 'No description available.'}
+                                </p>
+                                {selectedPreviewTask.tags?.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedPreviewTask.tags.slice(0, 6).map((tag) => (
+                                            <span key={tag} className="rounded-full bg-cyan-500/15 px-2 py-1 text-xs font-bold text-cyan-200">{tag}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                {selectedPreviewTask.attachments?.length > 0 && (
+                                    <p className={`text-xs font-semibold ${drawerMutedText}`}>{selectedPreviewTask.attachments.length} attachment{selectedPreviewTask.attachments.length === 1 ? '' : 's'}</p>
+                                )}
+                                <button type="button" onClick={() => handleTaskClick(selectedPreviewTask.id)} className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 px-4 py-2 text-sm font-black text-slate-950">
+                                    Open full task
+                                </button>
+                            </div>
+                        ) : (
+                            <div className={`flex h-full min-h-[320px] items-center justify-center text-center text-sm ${drawerMutedText}`}>
+                                Select a task to preview mission details.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </aside>
+        </div>
+    ) : null;
 
     const quickActionModal = quickActionContext ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
@@ -1068,23 +1525,16 @@ const CalendarView: React.FC = () => {
     ) : null;
 
     if (loading) {
-        return <div className="p-10 text-center text-white/70">Loading calendar�</div>;
+        return <PageLoader />;
     }
 
-    const topBarSurface = resolvedTheme === 'dark'
-        ? 'bg-slate-950/70 border-white/10 text-white'
-        : resolvedTheme === 'colorful'
-            ? 'bg-white/80 border-white/50 text-slate-900 shadow-lg'
-            : 'bg-white/85 border-slate-200 text-slate-800 shadow-sm';
-
     const buttonBase = 'rounded-full px-3 py-1 text-xs font-semibold transition';
-    const activeBtn = 'bg-gradient-to-r from-sky-400 to-violet-400 text-slate-900 shadow';
-    const inactiveBtn = resolvedTheme === 'dark'
-        ? 'border border-white/20 text-white/70 hover:border-white/50 hover:text-white'
-        : 'border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600';
+    const activeBtn = calendarTheme.activeButton;
+    const inactiveBtn = calendarTheme.button;
+    const fieldClass = calendarTheme.field;
 
     const controls = (
-        <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-5 py-4 backdrop-blur ${topBarSurface}`}>
+        <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${calendarTheme.panel}`}>
             <div className="flex flex-wrap items-center gap-2">
                 {(['month', 'week', 'day'] as ViewMode[]).map((mode) => (
                     <button
@@ -1106,17 +1556,17 @@ const CalendarView: React.FC = () => {
     );
 
     const filterBar = (
-        <div className={`mb-6 grid gap-3 rounded-2xl border px-5 py-4 backdrop-blur md:grid-cols-[2fr,1fr,1fr,1fr] ${topBarSurface}`}>
+        <div className={`mb-6 grid gap-3 rounded-2xl border px-5 py-4 md:grid-cols-[2fr,1fr,1fr,1fr] ${calendarTheme.panel}`}>
             <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search quests�"
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                placeholder="Search quests..."
+                className={`rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${fieldClass}`}
             />
             <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value as 'ALL' | TaskPriority)}
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className={`rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${fieldClass}`}
             >
                 <option value="ALL">All priorities</option>
                 {Object.values(TaskPriority).map((priority) => (
@@ -1128,7 +1578,7 @@ const CalendarView: React.FC = () => {
             <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'ALL' | TaskStatus)}
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className={`rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${fieldClass}`}
             >
                 <option value="ALL">All statuses</option>
                 {Object.values(TaskStatus).map((status) => (
@@ -1140,7 +1590,7 @@ const CalendarView: React.FC = () => {
             <select
                 value={assigneeFilter}
                 onChange={(e) => setAssigneeFilter(e.target.value as 'ALL' | 'ME' | string)}
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className={`rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${fieldClass}`}
             >
                 <option value="ME">My quests</option>
                 <option value="ALL">Entire squad</option>
@@ -1157,7 +1607,7 @@ const CalendarView: React.FC = () => {
     );
 
     const legend = (
-        <div className="mb-6 flex flex-wrap items-center gap-4 text-xs text-white/70">
+        <div className={`mb-6 flex flex-wrap items-center gap-4 text-xs ${calendarTheme.muted}`}>
             <span className="inline-flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-rose-400/60" />
                 Heavy workload
@@ -1178,23 +1628,25 @@ const CalendarView: React.FC = () => {
     );
 
     return (
-        <div className="space-y-6">
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">Mission Calendar</h1>
+        <div className={`${calendarTheme.page} space-y-6`}>
+            <h1 className={`text-3xl font-extrabold tracking-tight ${calendarTheme.heading}`}>Mission Calendar</h1>
             {controls}
             {filterBar}
             {legend}
             {viewMode === 'month' && (
-                <div className="grid grid-cols-7 gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                        <div key={day} className="rounded-2xl border border-white/10 bg-white/5 py-3 text-center">
-                            {day}
-                        </div>
-                    ))}
+                <div className="overflow-x-auto pb-2">
+                    <div className={`grid min-w-[980px] grid-cols-7 gap-3 text-xs font-semibold uppercase tracking-[0.3em] ${calendarTheme.muted}`}>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                            <div key={day} className={calendarTheme.weekday}>
+                                {day}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
             {renderCells()}
-            <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-4 text-xs text-white/60">
-                ?? Advanced automations such as reminders, external calendar sync, exports, smart scheduling, and time-blocking are on the roadmap. The current interface highlights conflicts, offers drag-and-drop rescheduling, and provides quick add so your crew can keep momentum while we wire up the deeper integrations.
+            <div className={`rounded-2xl border border-dashed p-4 text-xs ${calendarTheme.panel} ${calendarTheme.muted}`}>
+                Advanced automations such as reminders, external calendar sync, exports, smart scheduling, and time-blocking are on the roadmap.
             </div>
             {selectedTaskId && (
                 <TaskDetailModal
@@ -1214,6 +1666,7 @@ const CalendarView: React.FC = () => {
                 />
             )}
             {quickActionModal}
+            {dateDetailsDrawer}
         </div>
     );
 };

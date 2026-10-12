@@ -10,6 +10,7 @@ import { augmentTasksWithPoints, calculateUserPointsFromTasks } from '../utils/t
 import { loadPointsConfig, POINTS_CONFIG_UPDATED_EVENT } from '../utils/pointsConfigStorage';
 import { LEVELS_CONFIG_UPDATED_EVENT, getLevelProgress, loadLevelsConfig } from '../utils/levelsConfigStorage';
 import { BoltIcon, ChartBarIcon, RocketLaunchIcon, SparklesIcon, TrophyIcon } from '../components/icons';
+import PageLoader from '../components/loading/PageLoader';
 
 type ThemeMode = 'light' | 'dark' | 'colorful' | 'system';
 type ResolvedTheme = 'light' | 'dark' | 'colorful';
@@ -393,7 +394,7 @@ const Dashboard: React.FC = () => {
     }, [fetchDashboardData]);
 
     if (loading) {
-        return <div className="text-center p-8">Loading your quests...</div>;
+        return <PageLoader />;
     }
 
     const heroBorder = isDark ? 'border-primary/40' : isColorful ? 'border-white/70' : 'border-indigo-200/70';

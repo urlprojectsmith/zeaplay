@@ -1,6 +1,7 @@
 ﻿ import axios, { AxiosInstance, AxiosHeaders } from 'axios';
 import { TaskCategory } from '../types';
 import type { PointsConfig } from '../utils/pointsConfigStorage';
+import { normalizeMessage } from '../features/chat/utils/normalizeMessage';
 import {
   User,
   AvatarAsset,
@@ -122,6 +123,7 @@ import {
   TaskPageResponse,
   TaskKanbanResponse,
   TaskSummary,
+  TaskCalendarSummaryResponse,
   TaskTransferPayload,
   TaskTransferResponse,
   TaskTransferWorkflowDecision,
@@ -158,6 +160,8 @@ import {
   FeatureFlagUpdate,
   ChatConversation,
   ChatConversationCreatePayload,
+  ChatDirectoryPage,
+  ChatDirectoryUser,
   ChatDirectCreatePayload,
   ChatAttachment,
   ChatMember,
@@ -184,6 +188,25 @@ import {
 import { storeTokens, getAccessToken, getRefreshToken, clearTokens } from './tokenStorage';
 import { augmentTaskWithPoints } from '../utils/taskPoints';
 import { AUTH_EXPIRED_EVENT } from '../utils/appEvents';
+import {
+  setProgress as setGlobalProgress,
+  startProgressTask,
+  startTask as startGlobalLoadingTask,
+  stopTask as stopGlobalLoadingTask,
+  updateProgressTask,
+} from '../components/loading/loadingController';
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    showGlobalProgress?: boolean;
+    globalProgressTaskId?: string;
+  }
+
+  interface InternalAxiosRequestConfig {
+    showGlobalProgress?: boolean;
+    globalProgressTaskId?: string;
+  }
+}
 
 console.log('mockApi.ts: Setting API_BASE_URL');
 const API_BASE_URL = (
@@ -408,6 +431,26 @@ type ApiTaskPageResponse = {
   total: number;
   total_pages: number;
   status_counts: Record<string, number>;
+  next_cursor?: string | null;
+  has_more?: boolean;
+};
+
+type ApiTaskCalendarDaySummary = {
+  date: string;
+  total: number;
+  completed: number;
+  overdue: number;
+  urgent: number;
+  high: number;
+  medium: number;
+  low: number;
+  due_soon: number;
+};
+
+type ApiTaskCalendarSummaryResponse = {
+  start_date: string;
+  end_date: string;
+  days: ApiTaskCalendarDaySummary[];
 };
 
 type ApiTaskSummaryResponse = {
@@ -1352,6 +1395,10 @@ type ApiChatMember = {
   user_id: string;
   name: string;
   email: string;
+  avatar_url?: string | null;
+  title?: string | null;
+  department_name?: string | null;
+  account_status?: UserStatus;
   app_role: Role;
   role: 'OWNER' | 'ADMIN' | 'MEMBER';
   joined_at: string;
@@ -1381,23 +1428,7 @@ type ApiChatAttachment = {
   created_at: string;
 };
 
-type ApiChatMessage = {
-  id: string;
-  conversation_id: string;
-  sender_id: string;
-  sender_name: string;
-  sender_role: Role;
-  message_type: 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
-  client_id?: string | null;
-  content: string;
-  reply_to_message_id?: string | null;
-  edited_at?: string | null;
-  deleted_at?: string | null;
-  created_at: string;
-  updated_at: string;
-  reactions?: ApiChatReaction[];
-  attachments?: ApiChatAttachment[];
-};
+type ApiChatMessage = Record<string, unknown>;
 
 type ApiChatConversation = {
   id: string;
@@ -1445,6 +1476,28 @@ type ApiChatMessageSearchPage = {
   has_more: boolean;
 };
 
+type ApiChatDirectoryUser = {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url?: string | null;
+  presence: 'ONLINE' | 'AWAY' | 'OFFLINE';
+  last_seen_at?: string | null;
+  role_name?: string | null;
+  team_name?: string | null;
+  title?: string | null;
+  existing_conversation_id?: string | null;
+  is_favorite: boolean;
+  unread_count: number;
+  latest_message_preview?: string | null;
+  last_message_at?: string | null;
+};
+
+type ApiChatDirectoryPage = {
+  items: ApiChatDirectoryUser[];
+  next_cursor?: string | null;
+};
+
 const http: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
 });
@@ -1462,6 +1515,9 @@ http.interceptors.request.use((config) => {
   }
   if (!config.headers['Content-Type'] && config.method && config.method !== 'get') {
     config.headers['Content-Type'] = 'application/json';
+  }
+  if (config.showGlobalProgress !== false && !config.globalProgressTaskId) {
+    config.globalProgressTaskId = startGlobalLoadingTask();
   }
   return config;
 });
@@ -1494,9 +1550,13 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 http.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    stopGlobalLoadingTask(response.config.globalProgressTaskId);
+    return response;
+  },
   async (error) => {
     const { response, config } = error;
+    stopGlobalLoadingTask(config?.globalProgressTaskId);
     if (response?.status === 401 && !config.__isRetryRequest) {
       if (!refreshPromise) {
         refreshPromise = refreshAccessToken();
@@ -1602,6 +1662,10 @@ function mapChatMember(member: ApiChatMember): ChatMember {
     userId: member.user_id,
     name: member.name,
     email: member.email,
+    avatarUrl: member.avatar_url ?? null,
+    title: member.title ?? null,
+    departmentName: member.department_name ?? null,
+    accountStatus: (member.account_status ?? UserStatus.ACTIVE) as UserStatus,
     appRole: member.app_role,
     role: member.role,
     joinedAt: member.joined_at,
@@ -1612,41 +1676,27 @@ function mapChatMember(member: ApiChatMember): ChatMember {
   };
 }
 
-function mapChatMessage(message: ApiChatMessage): ChatMessage {
+function mapChatDirectoryUser(user: ApiChatDirectoryUser): ChatDirectoryUser {
   return {
-    id: message.id,
-    clientId: message.client_id ?? null,
-    conversationId: message.conversation_id,
-    senderId: message.sender_id,
-    senderName: message.sender_name,
-    senderRole: message.sender_role,
-    messageType: message.message_type,
-    content: message.content,
-    replyToMessageId: message.reply_to_message_id ?? null,
-    editedAt: message.edited_at ?? null,
-    deletedAt: message.deleted_at ?? null,
-    createdAt: message.created_at,
-    updatedAt: message.updated_at,
-    reactions: (message.reactions ?? []).map((reaction) => ({
-      id: reaction.id,
-      messageId: reaction.message_id,
-      userId: reaction.user_id,
-      emoji: reaction.emoji,
-      createdAt: reaction.created_at,
-    })),
-    attachments: (message.attachments ?? []).map((attachment) => ({
-      id: attachment.id,
-      messageId: attachment.message_id,
-      fileName: attachment.file_name,
-      originalFileName: attachment.original_file_name,
-      mimeType: attachment.mime_type,
-      fileSize: attachment.file_size,
-      storageKey: attachment.storage_key,
-      url: attachment.url ?? null,
-      createdAt: attachment.created_at,
-    })),
-    mentions: [],
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatarUrl: user.avatar_url ?? null,
+    presence: user.presence ?? 'OFFLINE',
+    lastSeenAt: user.last_seen_at ?? null,
+    roleName: user.role_name ?? null,
+    teamName: user.team_name ?? null,
+    title: user.title ?? null,
+    existingConversationId: user.existing_conversation_id ?? null,
+    isFavorite: user.is_favorite,
+    unreadCount: user.unread_count,
+    latestMessagePreview: user.latest_message_preview ?? null,
+    lastMessageAt: user.last_message_at ?? null,
   };
+}
+
+function mapChatMessage(message: ApiChatMessage): ChatMessage {
+  return normalizeMessage(message);
 }
 
 function mapChatConversation(conversation: ApiChatConversation): ChatConversation {
@@ -1749,6 +1799,24 @@ function mapTask(task: ApiTask): Task {
   };
 
   return augmentTaskWithPoints(mapped);
+}
+
+function mapTaskCalendarSummary(data: ApiTaskCalendarSummaryResponse): TaskCalendarSummaryResponse {
+  return {
+    startDate: data.start_date,
+    endDate: data.end_date,
+    days: (data.days ?? []).map((day) => ({
+      date: day.date,
+      total: day.total,
+      completed: day.completed,
+      overdue: day.overdue,
+      urgent: day.urgent,
+      high: day.high,
+      medium: day.medium,
+      low: day.low,
+      dueSoon: day.due_soon,
+    })),
+  };
 }
 
 function mapTicketStatusHistory(entry: ApiTicketStatusHistory): TicketStatusHistoryEntry {
@@ -2832,8 +2900,28 @@ const api = {
 
     async getChatConversations(): Promise<ChatConversation[]> {
       try {
-        const { data } = await http.get<ApiChatConversation[]>('/chat/conversations');
+        const { data } = await http.get<ApiChatConversation[]>('/chat/conversations', { showGlobalProgress: false });
         return data.map(mapChatConversation);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getChatUsers(options?: { search?: string; cursor?: string | null; limit?: number; teamId?: string | null }): Promise<ChatDirectoryPage> {
+      try {
+        const { data } = await http.get<ApiChatDirectoryPage>('/chat/users', {
+          params: {
+            search: options?.search?.trim() || undefined,
+            cursor: options?.cursor || undefined,
+            limit: options?.limit ?? 100,
+            team_id: options?.teamId || undefined,
+          },
+          showGlobalProgress: false,
+        });
+        return {
+          items: data.items.map(mapChatDirectoryUser),
+          nextCursor: data.next_cursor ?? null,
+        };
       } catch (error) {
         mapAxiosError(error);
       }
@@ -2841,7 +2929,7 @@ const api = {
 
     async getChatConversation(conversationId: string): Promise<ChatConversation & { messages?: ChatMessage[] }> {
       try {
-        const { data } = await http.get<ApiChatConversation & { messages?: ApiChatMessage[] }>(`/chat/conversations/${conversationId}`);
+        const { data } = await http.get<ApiChatConversation & { messages?: ApiChatMessage[] }>(`/chat/conversations/${conversationId}`, { showGlobalProgress: false });
         return { ...mapChatConversation(data), messages: (data.messages ?? []).map(mapChatMessage) };
       } catch (error) {
         mapAxiosError(error);
@@ -2850,7 +2938,7 @@ const api = {
 
     async createChatConversation(payload: ChatConversationCreatePayload): Promise<ChatConversation> {
       try {
-        const { data } = await http.post<ApiChatConversation>('/chat/conversations', toApiChatConversationPayload(payload));
+        const { data } = await http.post<ApiChatConversation>('/chat/conversations', toApiChatConversationPayload(payload), { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatConversation(data);
       } catch (error) {
@@ -2860,7 +2948,7 @@ const api = {
 
     async startDirectChat(payload: ChatDirectCreatePayload): Promise<ChatConversation> {
       try {
-        const { data } = await http.post<ApiChatConversation>('/chat/direct', { user_id: payload.userId });
+        const { data } = await http.post<ApiChatConversation>('/chat/direct', { user_id: payload.userId }, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatConversation(data);
       } catch (error) {
@@ -2875,6 +2963,7 @@ const api = {
             cursor: options?.cursor || undefined,
             limit: options?.limit ?? 50,
           },
+          showGlobalProgress: false,
         });
         return {
           items: data.items.map(mapChatMessage),
@@ -2896,6 +2985,7 @@ const api = {
             cursor: options.cursor || undefined,
             limit: options.limit ?? 25,
           },
+          showGlobalProgress: false,
         });
         return {
           items: data.items.map((item) => ({
@@ -2912,7 +3002,7 @@ const api = {
 
     async sendChatMessage(conversationId: string, payload: ChatMessageCreatePayload): Promise<ChatMessage> {
       try {
-        const { data } = await http.post<ApiChatMessage>(`/chat/conversations/${conversationId}/messages`, toApiChatMessagePayload(payload));
+        const { data } = await http.post<ApiChatMessage>(`/chat/conversations/${conversationId}/messages`, toApiChatMessagePayload(payload), { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatMessage(data);
       } catch (error) {
@@ -2922,7 +3012,7 @@ const api = {
 
     async updateChatMessage(messageId: string, content: string): Promise<ChatMessage> {
       try {
-        const { data } = await http.patch<ApiChatMessage>(`/chat/messages/${messageId}`, { content });
+        const { data } = await http.patch<ApiChatMessage>(`/chat/messages/${messageId}`, { content }, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatMessage(data);
       } catch (error) {
@@ -2932,7 +3022,7 @@ const api = {
 
     async deleteChatMessage(messageId: string): Promise<void> {
       try {
-        await http.delete(`/chat/messages/${messageId}`);
+        await http.delete(`/chat/messages/${messageId}`, { showGlobalProgress: false });
         invalidateCache('chat');
       } catch (error) {
         mapAxiosError(error);
@@ -2944,7 +3034,7 @@ const api = {
         const { data } = await http.post<ApiChatMember[]>(`/chat/conversations/${conversationId}/members`, {
           user_ids: userIds,
           role,
-        });
+        }, { showGlobalProgress: false });
         invalidateCache('chat');
         return data.map(mapChatMember);
       } catch (error) {
@@ -2952,9 +3042,22 @@ const api = {
       }
     },
 
+    async updateChatMember(conversationId: string, userId: string, payload: { isPinned?: boolean; isMuted?: boolean }): Promise<ChatMember> {
+      try {
+        const { data } = await http.patch<ApiChatMember>(`/chat/conversations/${conversationId}/members/${userId}`, {
+          is_pinned: payload.isPinned,
+          is_muted: payload.isMuted,
+        }, { showGlobalProgress: false });
+        invalidateCache('chat');
+        return mapChatMember(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
     async removeChatMember(conversationId: string, userId: string): Promise<void> {
       try {
-        await http.delete(`/chat/conversations/${conversationId}/members/${userId}`);
+        await http.delete(`/chat/conversations/${conversationId}/members/${userId}`, { showGlobalProgress: false });
         invalidateCache('chat');
       } catch (error) {
         mapAxiosError(error);
@@ -2965,7 +3068,7 @@ const api = {
       try {
         const { data } = await http.post<ApiChatMember>(`/chat/conversations/${conversationId}/read`, {
           last_read_message_id: lastReadMessageId ?? null,
-        });
+        }, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatMember(data);
       } catch (error) {
@@ -2975,7 +3078,7 @@ const api = {
 
     async addChatReaction(messageId: string, emoji: string): Promise<ChatMessage> {
       try {
-        const { data } = await http.post<ApiChatMessage>(`/chat/messages/${messageId}/reactions`, { emoji });
+        const { data } = await http.post<ApiChatMessage>(`/chat/messages/${messageId}/reactions`, { emoji }, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatMessage(data);
       } catch (error) {
@@ -2985,7 +3088,7 @@ const api = {
 
     async removeChatReaction(messageId: string, emoji: string): Promise<ChatMessage> {
       try {
-        const { data } = await http.delete<ApiChatMessage>(`/chat/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+        const { data } = await http.delete<ApiChatMessage>(`/chat/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatMessage(data);
       } catch (error) {
@@ -2994,17 +3097,22 @@ const api = {
     },
 
     async uploadChatAttachment(conversationId: string, file: File, onProgress?: (progress: number) => void): Promise<ChatAttachment> {
+      const progressTaskId = startProgressTask({ progress: 0 });
       try {
         const form = new FormData();
         form.append('file', file);
         const { data } = await http.post<Partial<ApiChatAttachment> & Pick<ApiChatAttachment, 'file_name' | 'original_file_name' | 'mime_type' | 'file_size' | 'storage_key'>>(`/chat/conversations/${conversationId}/attachments`, form, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          showGlobalProgress: false,
           onUploadProgress: (event) => {
-            if (event.total && onProgress) {
-              onProgress(Math.round((event.loaded / event.total) * 100));
+            if (event.total) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              updateProgressTask(progressTaskId, percent);
+              onProgress?.(percent);
             }
           },
         });
+        setGlobalProgress(100, progressTaskId);
         return {
           id: '',
           messageId: '',
@@ -3018,12 +3126,14 @@ const api = {
         };
       } catch (error) {
         mapAxiosError(error);
+      } finally {
+        stopGlobalLoadingTask(progressTaskId);
       }
     },
 
     async getChatPinnedMessages(conversationId: string): Promise<ChatPinnedMessage[]> {
       try {
-        const { data } = await http.get<ApiChatPinnedMessage[]>(`/chat/conversations/${conversationId}/pins`);
+        const { data } = await http.get<ApiChatPinnedMessage[]>(`/chat/conversations/${conversationId}/pins`, { showGlobalProgress: false });
         return data.map(mapChatPinnedMessage);
       } catch (error) {
         mapAxiosError(error);
@@ -3032,7 +3142,7 @@ const api = {
 
     async pinChatMessage(conversationId: string, messageId: string): Promise<ChatPinnedMessage> {
       try {
-        const { data } = await http.post<ApiChatPinnedMessage>(`/chat/conversations/${conversationId}/messages/${messageId}/pin`);
+        const { data } = await http.post<ApiChatPinnedMessage>(`/chat/conversations/${conversationId}/messages/${messageId}/pin`, undefined, { showGlobalProgress: false });
         invalidateCache('chat');
         return mapChatPinnedMessage(data);
       } catch (error) {
@@ -3042,7 +3152,7 @@ const api = {
 
     async unpinChatMessage(conversationId: string, messageId: string): Promise<void> {
       try {
-        await http.delete(`/chat/conversations/${conversationId}/messages/${messageId}/pin`);
+        await http.delete(`/chat/conversations/${conversationId}/messages/${messageId}/pin`, { showGlobalProgress: false });
         invalidateCache('chat');
       } catch (error) {
         mapAxiosError(error);
@@ -3069,12 +3179,14 @@ const api = {
     try {
       const cacheKey = 'users';
       const cached = getCached<User[]>(cacheKey);
-      if (cached) {
+      if (cached && cached.length > 0) {
         return cached;
       }
       const { data } = await http.get<ApiUser[]>('/users');
       const mapped = data.map(mapUser);
-      setCached(cacheKey, mapped);
+      if (mapped.length > 0) {
+        setCached(cacheKey, mapped);
+      }
       return mapped;
     } catch (error) {
       mapAxiosError(error);
@@ -4606,12 +4718,19 @@ const api = {
   },
 
   async uploadRewardImage(file: File): Promise<{ imageRef: string; imageUrl: string; mimeType: string; size: number }> {
+    const progressTaskId = startProgressTask({ progress: 0 });
     try {
       const formData = new FormData();
       formData.append('file', file);
       const { data } = await http.post<RewardImageUploadResponse>('/rewards/images/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        showGlobalProgress: false,
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          updateProgressTask(progressTaskId, Math.round((event.loaded / event.total) * 100));
+        },
       });
+      setGlobalProgress(100, progressTaskId);
       return {
         imageRef: data.image_ref,
         imageUrl: data.image_url,
@@ -4620,6 +4739,8 @@ const api = {
       };
     } catch (error) {
       mapAxiosError(error);
+    } finally {
+      stopGlobalLoadingTask(progressTaskId);
     }
   },
 
@@ -4843,6 +4964,7 @@ const api = {
     async getTasksPage(params: {
       page: number;
       pageSize: number;
+      cursor?: string | null;
       search?: string;
       status?: TaskStatus;
       priority?: TaskPriority;
@@ -4861,6 +4983,7 @@ const api = {
           page: params.page,
           page_size: params.pageSize,
         };
+        if (params.cursor) query.cursor = params.cursor;
         if (params.search) query.search = params.search;
         if (params.status) query.status = params.status;
         if (params.priority) query.priority = params.priority;
@@ -4889,7 +5012,85 @@ const api = {
           total: data.total,
           totalPages: data.total_pages,
           statusCounts,
+          nextCursor: data.next_cursor ?? null,
+          hasMore: data.has_more ?? false,
         };
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getTaskCalendarSummary(params: {
+      startDate: string;
+      endDate: string;
+      search?: string;
+      status?: TaskStatus;
+      priority?: TaskPriority;
+      assigneeId?: string;
+      team?: string;
+      tag?: string;
+      dueDate?: string;
+      createdDate?: string;
+      quickFilter?: string;
+      signal?: AbortSignal;
+    }): Promise<TaskCalendarSummaryResponse> {
+      try {
+        const query: Record<string, unknown> = {
+          start_date: params.startDate,
+          end_date: params.endDate,
+        };
+        if (params.search) query.search = params.search;
+        if (params.status) query.status = params.status;
+        if (params.priority) query.priority = params.priority;
+        if (params.assigneeId) query.assignee_id = params.assigneeId;
+        if (params.team) query.team = params.team;
+        if (params.tag) query.tag = params.tag;
+        if (params.dueDate) query.due_date = params.dueDate;
+        if (params.createdDate) query.created_date = params.createdDate;
+        if (params.quickFilter) query.quick_filter = params.quickFilter;
+        const { data } = await http.get<ApiTaskCalendarSummaryResponse>('/tasks/calendar/summary', {
+          params: query,
+          signal: params.signal,
+        });
+        return mapTaskCalendarSummary(data);
+      } catch (error) {
+        mapAxiosError(error);
+      }
+    },
+
+    async getTaskCalendarTasks(params: {
+      startDate: string;
+      endDate?: string;
+      search?: string;
+      status?: TaskStatus;
+      priority?: TaskPriority;
+      assigneeId?: string;
+      team?: string;
+      tag?: string;
+      dueDate?: string;
+      createdDate?: string;
+      quickFilter?: string;
+      signal?: AbortSignal;
+    }): Promise<Task[]> {
+      try {
+        const query: Record<string, unknown> = {
+          start_date: params.startDate,
+        };
+        if (params.endDate) query.end_date = params.endDate;
+        if (params.search) query.search = params.search;
+        if (params.status) query.status = params.status;
+        if (params.priority) query.priority = params.priority;
+        if (params.assigneeId) query.assignee_id = params.assigneeId;
+        if (params.team) query.team = params.team;
+        if (params.tag) query.tag = params.tag;
+        if (params.dueDate) query.due_date = params.dueDate;
+        if (params.createdDate) query.created_date = params.createdDate;
+        if (params.quickFilter) query.quick_filter = params.quickFilter;
+        const { data } = await http.get<ApiTask[]>('/tasks/calendar/tasks', {
+          params: query,
+          signal: params.signal,
+        });
+        return (data ?? []).map(mapTask);
       } catch (error) {
         mapAxiosError(error);
       }
@@ -5868,17 +6069,22 @@ const api = {
     contentType: string,
     onProgress?: (percent: number) => void,
   ): Promise<void> {
+    const progressTaskId = startProgressTask({ progress: 0 });
     try {
       await axios.put(uploadUrl, file, {
         headers: { 'Content-Type': contentType },
         onUploadProgress: (event) => {
           if (!event.total) return;
           const percent = Math.round((event.loaded / event.total) * 100);
+          updateProgressTask(progressTaskId, percent);
           onProgress?.(percent);
         },
       });
+      setGlobalProgress(100, progressTaskId);
     } catch (error) {
       mapAxiosError(error);
+    } finally {
+      stopGlobalLoadingTask(progressTaskId);
     }
   },
 

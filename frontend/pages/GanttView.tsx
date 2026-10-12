@@ -3,6 +3,7 @@ import { Task, User, TaskStatus } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/mockApi';
 import { formatDate, formatTaskStatus } from '../utils';
+import PageLoader from '../components/loading/PageLoader';
 
 /**
  * Gamified Gantt Raid Map — Full Page Redesign
@@ -358,15 +359,7 @@ const GanttRaidMapPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="relative min-h-[60vh] overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(56,189,248,0.08),transparent_60%),radial-gradient(ellipse_at_bottom_right,rgba(16,185,129,0.08),transparent_50%)]" />
-        <div className="relative mx-auto max-w-4xl text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-white/60" />
-          <p className="text-sm text-white/70">Spawning the raid map…</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -591,3 +584,4 @@ const GanttRaidMapPage: React.FC = () => {
 };
 
 export default GanttRaidMapPage;
+

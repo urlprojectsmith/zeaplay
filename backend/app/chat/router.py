@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
 from ..dependencies import get_current_active_user
-from .services import AttachmentService, ConversationService, MemberService, MessageService, PinService, ReactionService
+from ..ws import chat as chat_ws
+from .services import AttachmentService, ConversationService, DirectoryService, MemberService, MessageService, PinService, ReactionService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -17,6 +18,24 @@ def list_conversations(
     current_user: models.User = Depends(get_current_active_user),
 ):
     return ConversationService(db).list_conversations(current_user)
+
+
+@router.get("/users", response_model=schemas.ChatDirectoryPage)
+def list_chat_users(
+    search: str | None = Query(default=None, max_length=255),
+    cursor: str | None = Query(default=None, max_length=255),
+    limit: int = Query(default=100, ge=1, le=100),
+    team_id: str | None = Query(default=None, max_length=255),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return DirectoryService(db).list_users(
+        current_user,
+        search=search,
+        cursor=cursor,
+        limit=limit,
+        team_id=team_id,
+    )
 
 
 @router.post("/conversations", response_model=schemas.ChatConversationSummary, status_code=status.HTTP_201_CREATED)
@@ -158,10 +177,21 @@ def search_messages(
 def create_message(
     conversation_id: str,
     payload: schemas.ChatMessageCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    return MessageService(db).create_message(conversation_id, payload, current_user)
+    service = MessageService(db)
+    message = service.create_message(conversation_id, payload, current_user)
+    if service.last_create_inserted:
+        background_tasks.add_task(
+            chat_ws.manager.broadcast_conversation,
+            conversation_id,
+            "message:new",
+            chat_ws._message_payload(message, payload.client_id),
+        )
+        background_tasks.add_task(chat_ws._broadcast_unread, conversation_id)
+    return message
 
 
 @router.patch("/messages/{message_id}", response_model=schemas.ChatMessageRead)

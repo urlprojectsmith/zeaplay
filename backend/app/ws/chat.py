@@ -6,8 +6,9 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, status
 from sqlalchemy import select
+from starlette.websockets import WebSocketDisconnect
 
 from .. import models, schemas
 from ..database import SessionLocal
@@ -33,6 +34,14 @@ def _extract_token(websocket: WebSocket) -> str | None:
         if len(parts) == 2 and parts[0].lower() == "bearer":
             return parts[1]
     return None
+
+
+async def _reject_websocket(websocket: WebSocket) -> None:
+    try:
+        await websocket.accept()
+    except RuntimeError:
+        pass
+    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
 
 class ChatConnectionManager:
@@ -275,23 +284,23 @@ async def _broadcast_unread(conversation_id: str) -> None:
 async def chat_ws(websocket: WebSocket) -> None:
     token = _extract_token(websocket)
     if not token:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await _reject_websocket(websocket)
         return
     try:
         payload = _decode_access_token(token)
         user_id = str(payload.get("user_id") or payload.get("sub"))
     except Exception:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await _reject_websocket(websocket)
         return
 
     with SessionLocal() as db:
         user = db.execute(select(models.User).where(models.User.id == user_id)).scalar_one_or_none()
         if not user or user.status != models.UserStatusEnum.ACTIVE:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await _reject_websocket(websocket)
             return
         token_tenant_id = str(payload.get("tenant_id") or "")
         if token_tenant_id and token_tenant_id != str(user.tenant_id):
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await _reject_websocket(websocket)
             return
 
     await manager.connect(websocket, user)
@@ -435,7 +444,11 @@ async def chat_ws(websocket: WebSocket) -> None:
             except Exception as exc:
                 logger.exception("chat.ws.event_failed event=%s user_id=%s", event_type, user.id)
                 await websocket.send_json(_socket_error("event_failed", str(exc)))
-    except WebSocketDisconnect:
+    except BaseException as exc:
+        disconnect_name = exc.__class__.__name__ == "WebSocketDisconnect"
+        disconnected_runtime = isinstance(exc, RuntimeError) and "WebSocket is not connected" in str(exc)
+        if not disconnect_name and not disconnected_runtime:
+            raise
         pass
     finally:
         await manager.disconnect(websocket)

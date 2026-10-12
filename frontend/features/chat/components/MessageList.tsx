@@ -31,9 +31,9 @@ const MessageList: React.FC<Props> = ({ messages, currentUser, conversation, loa
   }, [messages.length]);
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-4 py-4 sm:px-6">
+    <div className="chat-message-list">
       {hasMore && (
-        <button type="button" onClick={onLoadMore} className="mx-auto mb-4 block rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500">
+        <button type="button" onClick={onLoadMore} className="mx-auto mb-4 block rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold text-zinc-200 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500">
           Load older messages
         </button>
       )}
@@ -42,10 +42,10 @@ const MessageList: React.FC<Props> = ({ messages, currentUser, conversation, loa
         <div className="space-y-4" aria-label="Loading messages">
           {[0, 1, 2].map((item) => (
             <div key={item} className="flex animate-pulse gap-3">
-              <div className="h-9 w-9 rounded-2xl bg-slate-200" />
+              <div className="h-9 w-9 rounded-full bg-zinc-800" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-28 rounded bg-slate-200" />
-                <div className="h-14 max-w-xl rounded-2xl bg-slate-100" />
+                <div className="h-3 w-28 rounded bg-zinc-800" />
+                <div className="h-14 max-w-xl rounded-2xl bg-zinc-900" />
               </div>
             </div>
           ))}
@@ -57,17 +57,19 @@ const MessageList: React.FC<Props> = ({ messages, currentUser, conversation, loa
       <div className="space-y-2">
         {messages.map((message, index) => {
           const previous = messages[index - 1];
-          const grouped = Boolean(previous && previous.senderId === message.senderId && new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() < 5 * 60 * 1000);
-          const showDate = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
+          const messageDate = Number.isNaN(new Date(message.createdAt ?? '').getTime()) ? new Date() : new Date(message.createdAt);
+          const previousDate = previous && !Number.isNaN(new Date(previous.createdAt ?? '').getTime()) ? new Date(previous.createdAt) : null;
+          const grouped = Boolean(previous && previous.senderId === message.senderId && previousDate && messageDate.getTime() - previousDate.getTime() < 5 * 60 * 1000);
+          const showDate = !previousDate || previousDate.toDateString() !== messageDate.toDateString();
           const replyTo = message.replyToMessageId ? messages.find((item) => item.id === message.replyToMessageId) ?? null : null;
           return (
             <React.Fragment key={message.id}>
-              {showDate && <div className="py-2 text-center text-xs font-semibold text-slate-400">{new Date(message.createdAt).toLocaleDateString()}</div>}
+              {showDate && <div className="py-2 text-center text-xs font-semibold text-zinc-500">{messageDate.toLocaleDateString()}</div>}
               {index === firstUnreadIndex && unreadCount > 0 && (
                 <div className="flex items-center gap-3 py-2">
-                  <span className="h-px flex-1 bg-pink-200" />
-                  <span className="rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-600">New messages</span>
-                  <span className="h-px flex-1 bg-pink-200" />
+                  <span className="h-px flex-1 bg-sky-500/50" />
+                  <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-black text-sky-300">New messages</span>
+                  <span className="h-px flex-1 bg-sky-500/50" />
                 </div>
               )}
               <MessageItem message={message} conversation={conversation} currentUser={currentUser} grouped={grouped} replyTo={replyTo} onReply={onReply} onRetry={onRetry} onToggleReaction={onToggleReaction} onEdit={onEdit} onDelete={onDelete} canManage={canManage} onPin={onPin} />
@@ -77,7 +79,7 @@ const MessageList: React.FC<Props> = ({ messages, currentUser, conversation, loa
       </div>
 
       {typingUsers.length > 0 && (
-        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-500">
+        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-zinc-400">
           <span className="flex gap-1">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-400" />
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-sky-400 [animation-delay:120ms]" />
@@ -88,7 +90,7 @@ const MessageList: React.FC<Props> = ({ messages, currentUser, conversation, loa
       )}
 
       {unreadCount > 0 && (
-        <button type="button" onClick={() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })} className="sticky bottom-3 mx-auto mt-3 flex rounded-full bg-gradient-to-r from-violet-600 to-blue-500 px-4 py-2 text-xs font-black text-white shadow-lg shadow-violet-500/20">
+        <button type="button" onClick={() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })} className="sticky bottom-3 mx-auto mt-3 flex rounded-full bg-sky-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-sky-500/20">
           Down {unreadCount} new messages
         </button>
       )}

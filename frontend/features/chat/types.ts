@@ -3,6 +3,8 @@ export type {
   ChatConversation,
   ChatConversationCreatePayload,
   ChatConversationType,
+  ChatDirectoryPage,
+  ChatDirectoryUser,
   ChatDirectCreatePayload,
   ChatMember,
   ChatMemberRole,
